@@ -605,7 +605,7 @@ export default function SettingsPage() {
                   id="aiName"
                   value={customization.aiAssistantName}
                   onChange={(e) => setCustomization(prev => ({ ...prev, aiAssistantName: e.target.value }))}
-                  placeholder="e.g., Alex, Dr. Smith, Research Buddy"
+                  placeholder="Any name you like!"
                   className="w-full paper-input"
                 />
               </div>

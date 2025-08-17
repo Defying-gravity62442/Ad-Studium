@@ -124,13 +124,11 @@ export default function Home() {
       {/* Hero Section */}
       <section className="relative py-20">
         <div className="content-wrapper-7xl">
-          {/* Badge */}
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center gap-3 bg-gradient-to-r from-gray-100 to-gray-200 border border-gray-300 px-6 py-3 rounded-full text-sm font-medium text-gray-700 shadow-sm hover:shadow-md transition-all duration-200">
-              <div className="bg-gray-300 p-1.5 rounded-full">
-                <GraduationCap className="h-4 w-4 text-gray-600" />
-              </div>
-              <span className="text-elegant tracking-wide">Built by an undergrad, for future PhD students</span>
+          {/* Small badge that immediately signals the niche focus */}
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center bg-gray-200 text-gray-800 px-4 py-2 rounded-full text-sm font-medium mb-6">
+              <GraduationCap className="h-4 w-4 mr-2" />
+              Built by an undergrad, for future PhD students
             </div>
           </div>
 
@@ -253,7 +251,7 @@ export default function Home() {
             <div className="paper-card paper-elevated paper-spacing-lg">
               <Quote className="h-8 w-8 text-gray-600 mb-6" />
               <blockquote className="text-lg italic text-black mb-6 text-elegant leading-relaxed">
-                &ldquo;I realized the advantage of making an app for one single ultimate goal: to become a PhD, to do research. Every activity becomes context for AI assistance.&rdquo;
+                &ldquo;What I realized is, if you build an app around one single goal—like becoming a PhD—then every activity turns into context for the AI. It keeps reinforcing itself, like a positive feedback loop. A general-purpose model with endless new chats just doesn&apos;t work that way.&rdquo;
               </blockquote>
               <div className="text-paper-secondary font-medium text-elegant">— The Creator, Undergrad → PhD Aspirant</div>
             </div>

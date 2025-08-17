@@ -147,8 +147,7 @@ export default function E2EESetup({ onComplete }: E2EESetupProps) {
           </h1>
           <p className="text-xl text-gray-700 leading-relaxed">
             Ad Studium uses end-to-end encryption so that even our developers cannot see your data. 
-            Create a password to secure your encryption key. If you lose this password, 
-            your data will be lost forever.
+            Create a password to secure your encryption key.
           </p>
         </div>
 
