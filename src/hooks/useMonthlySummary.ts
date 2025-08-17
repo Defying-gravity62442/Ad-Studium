@@ -67,8 +67,6 @@ export function useMonthlySummary() {
       // Use the new function that generates summaries for all past months that need them
       const result = await generateMonthlySummariesForPastMonths(
         userFieldsOfStudy,
-        userAssistantName,
-        userAssistantPersonality,
         encrypt,
         decrypt
       )

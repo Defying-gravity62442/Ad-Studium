@@ -1,10 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Button } from '@/components/ui'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Eye, Edit3 } from 'lucide-react'
 import { useAutoSave } from '@/hooks/useAutoSave'
 
 interface JournalEditorProps {

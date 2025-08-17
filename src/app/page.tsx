@@ -4,8 +4,7 @@ import { useSession, signIn } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { 
-  BookOpen, 
-  PenTool, 
+  BookOpen,  
   Map, 
   Mail, 
   Brain, 
@@ -13,7 +12,6 @@ import {
   ArrowRight,
   Sparkles,
   CheckCircle,
-  Star,
   Users,
   Zap,
   Target,

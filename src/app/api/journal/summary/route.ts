@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import { serializeEncryptedData, parseEncryptedData, validateEncryptedData } from '@/lib/encryption'
+import { parseEncryptedData } from '@/lib/encryption'
 import { shouldGenerateDailySummary, getCurrentJournalDate } from '@/lib/date-utils'
 import { createBedrockService } from '@/lib/ai/bedrock'
 
@@ -41,7 +41,6 @@ export async function POST(request: NextRequest) {
     }
 
     const userTimezone = user.timezone || 'UTC'
-    const currentJournalDate = getCurrentJournalDate(userTimezone)
 
     // Get journal data from request body (sent by client with decrypted content)
     const { journals: clientJournals } = await request.json()

@@ -35,8 +35,6 @@ interface MonthlySummary {
  */
 export async function generateMonthlySummariesForPastMonths(
   userFieldsOfStudy: string = DEFAULT_FIELD_OF_STUDY,
-  userAssistantName: string = 'Claude',
-  userAssistantPersonality: string = 'supportive and encouraging',
   encrypt: (data: string) => Promise<unknown>,
   decrypt: (data: any) => Promise<string>,
   onSuccess?: (message: string) => void,

@@ -8,7 +8,7 @@ import { calculateUniquePages } from '@/lib/utils/reading-progress'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { EncryptedData } from '@/lib/client-encryption'
-import { BookOpen, Upload, FileText, Brain, Plus, Calendar, Clock, Eye, CheckCircle, AlertCircle, Loader2, Sparkles, Search, X, Bookmark, Feather, Archive, Trash2, Lock, AlertTriangle } from 'lucide-react'
+import { BookOpen, Upload, FileText, Brain, Plus, Calendar, Clock, Eye, CheckCircle, Loader2, Sparkles, X, Trash2, Lock, AlertTriangle } from 'lucide-react'
 
 interface Reading {
   id: string
@@ -848,7 +848,6 @@ export default function ReadingReflectionPage() {
                             <h4 className="font-medium text-gray-900 text-sm">{reading.decryptedTitle}</h4>
                             <div className="space-y-1">
                               {validLogs.map((log) => {
-                                const pagesRead = log.decryptedEndPage! - log.decryptedStartPage! + 1
                                 return (
                                   <div
                                     key={log.id}

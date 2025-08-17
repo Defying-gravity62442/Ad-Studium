@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import { useE2EE } from '@/hooks/useE2EE'
@@ -133,7 +133,7 @@ interface SummaryData {
   generatedProof?: unknown
 }
 
-export default function SettingsPage() {
+function SettingsContent() {
   const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<'customization' | 'calendar' | 'export' | 'delete'>('customization')
   const [isLoading, setIsLoading] = useState(true)
@@ -867,5 +867,17 @@ export default function SettingsPage() {
         />
       )}
     </div>
+  )
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-2xl text-gray-600">Loading...</div>
+      </div>
+    }>
+      <SettingsContent />
+    </Suspense>
   )
 }
