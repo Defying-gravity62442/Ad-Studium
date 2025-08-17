@@ -75,3 +75,51 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { summaryId, isHiddenFromAI } = await request.json()
+
+    if (summaryId === undefined || isHiddenFromAI === undefined) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    }
+
+    // Verify the summary exists and belongs to the user
+    const summary = await prisma.dailySummary.findFirst({
+      where: {
+        id: summaryId,
+        journal: {
+          userId: session.user.id
+        }
+      }
+    })
+
+    if (!summary) {
+      return NextResponse.json({ error: 'Daily summary not found' }, { status: 404 })
+    }
+
+    // Update the isHiddenFromAI flag
+    const updatedSummary = await prisma.dailySummary.update({
+      where: { id: summaryId },
+      data: { isHiddenFromAI }
+    })
+
+    return NextResponse.json({ 
+      success: true,
+      summaryId: updatedSummary.id,
+      isHiddenFromAI: updatedSummary.isHiddenFromAI
+    })
+
+  } catch (error) {
+    console.error('Failed to update daily summary:', error)
+    return NextResponse.json(
+      { error: 'Failed to update daily summary' },
+      { status: 500 }
+    )
+  }
+}

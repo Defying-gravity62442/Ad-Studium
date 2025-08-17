@@ -420,6 +420,43 @@ export default function HistoryPage() {
     }
   }
 
+  const handleToggleHiddenFromAI = async (summaryId: string, currentHiddenState: boolean) => {
+    try {
+      const response = await fetch('/api/journal/summary/save', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          summaryId,
+          isHiddenFromAI: !currentHiddenState
+        })
+      })
+
+      if (response.ok) {
+        // Update the journal's daily summary in state
+        setJournals(prev => prev.map(journal => {
+          if (journal.dailySummary?.id === summaryId) {
+            return {
+              ...journal,
+              dailySummary: {
+                ...journal.dailySummary,
+                isHiddenFromAI: !currentHiddenState
+              }
+            }
+          }
+          return journal
+        }))
+      } else {
+        const error = await response.json()
+        alert(`Failed to update summary: ${error.error || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('Failed to toggle hidden from AI:', error)
+      alert('Failed to update summary. Please try again.')
+    }
+  }
+
   // Weekly summaries are automatically generated and should not be manually edited
   // This maintains consistency with the automatic generation pattern
 
@@ -450,7 +487,7 @@ export default function HistoryPage() {
                 Your Journey History
               </h1>
               <p className="text-paper-secondary text-lg text-elegant">
-                Reflect on your past thoughts and see how you&apos;ve grown over time.
+                Reflect on your past thoughts and see how you&apos;ve grown over time. You can control which daily summaries are shared with AI for better privacy.
               </p>
             </div>
           </div>
@@ -499,6 +536,15 @@ export default function HistoryPage() {
           </div>
         ) : selectedView === 'journals' ? (
           <div className="paper-list">
+            {/* AI Privacy Controls Info */}
+            <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+              <h3 className="text-sm font-medium text-paper mb-2 text-elegant">AI Privacy Controls</h3>
+              <p className="text-sm text-paper-secondary text-elegant">
+                You can hide specific daily summaries from AI processing. Hidden summaries won&apos;t be used to generate weekly/monthly summaries or provide context for AI conversations. 
+                This helps you maintain privacy over sensitive content while still benefiting from AI assistance for other entries.
+              </p>
+            </div>
+            
             {journals.length === 0 ? (
               <div className="paper-empty">
                 <div className="paper-empty-icon">
@@ -575,8 +621,32 @@ export default function HistoryPage() {
                   )}
                   
                   {journal.dailySummary && (
-                    <div className="mt-4 p-3 bg-gray-50 rounded border-l-4 border-gray-400">
-                      <h4 className="text-sm font-medium text-paper mb-2 text-elegant">Daily Summary</h4>
+                    <div className={`mt-4 p-3 rounded border-l-4 ${
+                      journal.dailySummary.isHiddenFromAI 
+                        ? 'bg-gray-100 border-gray-500' 
+                        : 'bg-gray-50 border-gray-400'
+                    }`}>
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="text-sm font-medium text-paper text-elegant">
+                          Daily Summary
+                          {journal.dailySummary.isHiddenFromAI && (
+                            <span className="ml-2 paper-badge paper-badge-secondary">
+                              Hidden from AI
+                            </span>
+                          )}
+                        </h4>
+                        <button
+                          onClick={() => handleToggleHiddenFromAI(journal.dailySummary!.id, journal.dailySummary!.isHiddenFromAI)}
+                          className={`text-sm px-3 py-1 rounded transition-colors ${
+                            journal.dailySummary!.isHiddenFromAI
+                              ? 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          } text-elegant`}
+                          title={journal.dailySummary!.isHiddenFromAI ? 'Show to AI' : 'Hide from AI'}
+                        >
+                          {journal.dailySummary!.isHiddenFromAI ? 'Show to AI' : 'Hide from AI'}
+                        </button>
+                      </div>
                       <p className="text-sm text-paper-secondary text-elegant">{journal.dailySummary.content}</p>
                     </div>
                   )}
