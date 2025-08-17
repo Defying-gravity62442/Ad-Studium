@@ -17,8 +17,8 @@ const cardo = Cardo({
 });
 
 export const metadata: Metadata = {
-  title: "Ad Studium - Personal PhD Application Management",
-  description: "A personal platform to manage your PhD application journey",
+  title: "Ad Studium - To knowledge, to enthusiasm, to reflect.",
+  description: "The only AI companion that grows with you as you prepare for PhD programs",
 };
 
 export default function RootLayout({
