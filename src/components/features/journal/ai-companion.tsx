@@ -108,6 +108,17 @@ export function AiCompanion({
       }
 
       console.log('AiCompanion: Decrypting messages with key length:', userKey.length)
+      console.log('AiCompanion: Encrypted messages structure:', {
+        hasData: !!encryptedMessages.data,
+        hasIv: !!encryptedMessages.iv,
+        hasSalt: !!encryptedMessages.salt,
+        hasTag: !!encryptedMessages.tag,
+        dataLength: encryptedMessages.data?.length,
+        ivLength: encryptedMessages.iv?.length,
+        saltLength: encryptedMessages.salt?.length,
+        tagLength: encryptedMessages.tag?.length
+      })
+      
       const decryptedJson = await decrypt(encryptedMessages)
       const messages = JSON.parse(decryptedJson)
       console.log('AiCompanion: Successfully decrypted messages, count:', messages.length)
@@ -119,6 +130,7 @@ export function AiCompanion({
       }))
     } catch (error) {
       console.error('AiCompanion: Failed to decrypt messages:', error)
+      console.error('AiCompanion: Encrypted messages that failed:', encryptedMessages)
       return []
     }
   }

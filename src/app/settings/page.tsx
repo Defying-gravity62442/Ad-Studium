@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSession, signOut } from 'next-auth/react'
+import { useSearchParams } from 'next/navigation'
 import { useE2EE } from '@/hooks/useE2EE'
 import { CalendarPermissionRequest } from '@/components/features/calendar/CalendarPermissionRequest'
 import { TIMEZONE_OPTIONS } from '@/lib/utils/timezone'
@@ -133,6 +134,7 @@ interface SummaryData {
 }
 
 export default function SettingsPage() {
+  const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<'customization' | 'calendar' | 'export' | 'delete'>('customization')
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -155,6 +157,27 @@ export default function SettingsPage() {
   
   const { data: session } = useSession()
   const { decrypt, encrypt, isReady, hasKey, error: e2eeError } = useE2EE()
+
+  // Handle URL parameters for success/error messages
+  useEffect(() => {
+    const successParam = searchParams.get('success')
+    const errorParam = searchParams.get('error')
+    
+    if (successParam === 'calendar_permissions_granted') {
+      setSuccess('Calendar integration enabled successfully! You can now sync your milestones to Google Calendar.')
+      setCalendarIntegrationEnabled(true)
+    } else if (errorParam === 'calendar_permission_denied') {
+      setError('Calendar permission was denied. You can try again later.')
+    } else if (errorParam === 'no_authorization_code') {
+      setError('Failed to get authorization code from Google.')
+    } else if (errorParam === 'no_session') {
+      setError('No active session found. Please sign in again.')
+    } else if (errorParam === 'no_access_token') {
+      setError('Failed to get access token from Google.')
+    } else if (errorParam === 'oauth_callback_failed') {
+      setError('Failed to complete calendar integration. Please try again.')
+    }
+  }, [searchParams])
 
   // Load current customization data and calendar status
   useEffect(() => {
@@ -204,6 +227,27 @@ export default function SettingsPage() {
 
     loadData()
   }, [session, isReady, hasKey, decrypt])
+
+  // Additional effect to reload calendar status when success parameter is present
+  useEffect(() => {
+    const successParam = searchParams.get('success')
+    if (successParam === 'calendar_permissions_granted' && session?.user?.id) {
+      // Add a small delay to ensure the database has been updated
+      const timer = setTimeout(async () => {
+        try {
+          const response = await fetch('/api/user/onboarding-status')
+          if (response.ok) {
+            const data = await response.json()
+            setCalendarIntegrationEnabled(data.user.calendarIntegrationEnabled || false)
+          }
+        } catch (err) {
+          console.error('Error reloading calendar status:', err)
+        }
+      }, 1000)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [searchParams, session?.user?.id])
 
   const handleSaveCustomization = async () => {
     if (!hasKey) {

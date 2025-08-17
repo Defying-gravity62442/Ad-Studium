@@ -247,9 +247,30 @@ async function handleLoadConversation(userId: string, journalId: string) {
 
     const conversation = journal.aiConversations
     
+    // Add validation and logging for the messages structure
+    console.log('Raw conversation messages:', JSON.stringify(conversation.messages, null, 2))
+    
+    // Validate that the messages have the required structure for decryption
+    const messages = conversation.messages as any
+    if (!messages || typeof messages !== 'object') {
+      console.error('Invalid messages structure: not an object')
+      return NextResponse.json({ messages: [] })
+    }
+    
+    // Check if it has the required fields for decryption
+    if (!messages.data || !messages.iv || !messages.salt || !messages.tag) {
+      console.error('Invalid messages structure: missing required encryption fields', {
+        hasData: !!messages.data,
+        hasIv: !!messages.iv,
+        hasSalt: !!messages.salt,
+        hasTag: !!messages.tag
+      })
+      return NextResponse.json({ messages: [] })
+    }
+    
     // Return the encrypted messages - client will decrypt
     return NextResponse.json({ 
-      messages: conversation.messages as any
+      messages: messages
     })
   } catch (error) {
     console.error('Failed to load conversation:', error)

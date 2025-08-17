@@ -85,8 +85,25 @@ export function useE2EE(): UseE2EEReturn {
         throw new Error('Invalid encrypted data: not an object')
       }
       
+      // Log the structure for debugging
+      console.log('useE2EE: Validating encrypted data structure:', {
+        hasData: !!data.data,
+        hasIv: !!data.iv,
+        hasSalt: !!data.salt,
+        hasTag: !!data.tag,
+        dataType: typeof data.data,
+        ivType: typeof data.iv,
+        saltType: typeof data.salt,
+        tagType: typeof data.tag
+      })
+      
       if (!data.data || !data.iv || !data.salt || !data.tag) {
-        throw new Error('Invalid encrypted data: missing required fields')
+        const missingFields = []
+        if (!data.data) missingFields.push('data')
+        if (!data.iv) missingFields.push('iv')
+        if (!data.salt) missingFields.push('salt')
+        if (!data.tag) missingFields.push('tag')
+        throw new Error(`Invalid encrypted data: missing required fields: ${missingFields.join(', ')}`)
       }
       
       return await decryptData(data, userKey)
