@@ -33,6 +33,7 @@ interface YearlySummaryResult {
  * This consolidates the logic that was duplicated across useYearlySummary hook and history page
  */
 export async function generateYearlySummariesForPastYears(
+  userTimezone: string = 'UTC',
   userFieldsOfStudy: string = DEFAULT_FIELD_OF_STUDY,
   userAssistantName: string = 'Claude',
   userAssistantPersonality: string = 'supportive and encouraging',
@@ -70,7 +71,7 @@ export async function generateYearlySummariesForPastYears(
     
     allMonthlySummaries.forEach((summary: MonthlySummary) => {
       const summaryDate = new Date(summary.startDate)
-      const { start: yearStart } = getYearRange(summaryDate, 'UTC')
+      const { start: yearStart } = getYearRange(summaryDate, userTimezone)
       const yearKey = yearStart.toISOString().split('T')[0] // Use start date as key
       
       if (!yearlyGroups.has(yearKey)) {
@@ -80,7 +81,7 @@ export async function generateYearlySummariesForPastYears(
     })
 
     // Find the next chronological gap
-    const nextGap = findNextYearlyGap(existingYearlySummaries, yearlyGroups)
+    const nextGap = findNextYearlyGap(existingYearlySummaries, yearlyGroups, userTimezone)
     
     if (!nextGap) {
       console.log('No gaps found in yearly summaries')
@@ -135,9 +136,7 @@ export async function generateYearlySummariesForPastYears(
           type: 'yearly',
           date: nextGap.yearStart.toISOString(),
           monthlySummaries: validMonthlySummaries,
-          userFieldsOfStudy,
-          userAssistantName,
-          userAssistantPersonality
+          userFieldsOfStudy
         })
       })
 
@@ -184,14 +183,14 @@ export async function generateYearlySummariesForPastYears(
         console.log(`Generated yearly summary for year starting ${nextGap.yearStart.toISOString()}`)
         
         if (onSuccess) {
-          onSuccess(`Generated yearly summary for ${nextGap.yearStart.getFullYear()}`)
+          onSuccess(`Generated yearly summary for ${nextGap.yearStart.toLocaleDateString()}`)
         }
       } else {
         totalErrors++
         console.error(`Failed to save yearly summary for year starting ${nextGap.yearStart.toISOString()}`)
         
         if (onError) {
-          onError(`Failed to save yearly summary for ${nextGap.yearStart.getFullYear()}`)
+          onError(`Failed to save yearly summary for ${nextGap.yearStart.toLocaleDateString()}`)
         }
       }
 
@@ -200,7 +199,7 @@ export async function generateYearlySummariesForPastYears(
       console.error(`Failed to generate yearly summary for year starting ${nextGap.yearStart.toISOString()}:`, error)
       
       if (onError) {
-        onError(`Failed to generate yearly summary for ${nextGap.yearStart.getFullYear()}`)
+        onError(`Failed to generate yearly summary for ${nextGap.yearStart.toLocaleDateString()}`)
       }
     }
 
@@ -226,7 +225,8 @@ export async function generateYearlySummariesForPastYears(
  */
 function findNextYearlyGap(
   existingYearlySummaries: YearlySummary[], 
-  yearlyGroups: Map<string, MonthlySummary[]>
+  yearlyGroups: Map<string, MonthlySummary[]>,
+  userTimezone: string
 ): { yearStart: Date; yearEnd: Date; monthlySummaries: MonthlySummary[] } | null {
   
   // Sort existing yearly summaries by year start date (oldest first)
@@ -244,11 +244,11 @@ function findNextYearlyGap(
     
     const earliestYearKey = sortedYearKeys[0]
     const yearStart = new Date(earliestYearKey)
-    const { end: yearEnd } = getYearRange(yearStart, 'UTC')
+    const { end: yearEnd } = getYearRange(yearStart, userTimezone)
     
     // Check if we should generate a summary for this year (not too recent)
     const isTestMode = process.env.NODE_ENV === 'development' && false
-    const shouldGenerate = isTestMode || shouldGenerateYearlySummary(yearEnd, 'UTC')
+    const shouldGenerate = isTestMode || shouldGenerateYearlySummary(yearEnd, userTimezone)
     
     if (shouldGenerate) {
       return {
@@ -273,11 +273,11 @@ function findNextYearlyGap(
   
   // Check if this next year has monthly summaries
   if (yearlyGroups.has(nextYearKey)) {
-    const { end: nextYearEnd } = getYearRange(nextYearStart, 'UTC')
+    const { end: nextYearEnd } = getYearRange(nextYearStart, userTimezone)
     
     // Check if we should generate a summary for this year (not too recent)
     const isTestMode = process.env.NODE_ENV === 'development' && false
-    const shouldGenerate = isTestMode || shouldGenerateYearlySummary(nextYearEnd, 'UTC')
+    const shouldGenerate = isTestMode || shouldGenerateYearlySummary(nextYearEnd, userTimezone)
     
     if (shouldGenerate) {
       return {

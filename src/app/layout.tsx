@@ -17,7 +17,7 @@ const cardo = Cardo({
 });
 
 export const metadata: Metadata = {
-  title: "Ad Studium - To knowledge, to enthusiasm, to reflect.",
+  title: "Ad Studium - To knowledge, to enthusiasm, to reflection.",
   description: "The only AI companion that grows with you as you prepare for PhD programs",
 };
 

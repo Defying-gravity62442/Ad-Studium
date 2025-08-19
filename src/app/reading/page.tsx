@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useE2EE } from '@/hooks/useE2EE'
 import { Modal } from '@/components/ui/modal'
+import { ErrorModal } from '@/components/ui/error-modal'
 import { extractTextFromPDF } from '@/lib/pdf-parser'
 import { calculateUniquePages } from '@/lib/utils/reading-progress'
 import ReactMarkdown from 'react-markdown'
@@ -68,6 +69,8 @@ export default function ReadingReflectionPage() {
   const [showLogModal, setShowLogModal] = useState(false)
   const [deletingReadingId, setDeletingReadingId] = useState<string | null>(null)
   const [userAssistantName, setUserAssistantName] = useState<string>('Claude')
+  const [isDragOver, setIsDragOver] = useState(false)
+  const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; message: string }>({ isOpen: false, title: '', message: '' })
 
   const { isReady, hasKey, encrypt, decryptSafely, error: e2eeError } = useE2EE()
 
@@ -201,7 +204,7 @@ export default function ReadingReflectionPage() {
     } catch (error) {
       console.error('Failed to load readings:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-      alert(`Failed to load readings: ${errorMessage}. Please check your encryption key and try again.`)
+      setErrorModal({ isOpen: true, title: 'Failed to Load Readings', message: `${errorMessage}. Please check your encryption key and try again.` })
       setIsLoading(false)
     }
   }
@@ -211,12 +214,12 @@ export default function ReadingReflectionPage() {
 
     const maxSizeInBytes = 10 * 1024 * 1024
     if (selectedFile.size > maxSizeInBytes) {
-      alert('File size too large. Please select a PDF file smaller than 10MB.')
+      setErrorModal({ isOpen: true, title: 'File Too Large', message: 'Please select a PDF file smaller than 10MB.' })
       return
     }
 
     if (selectedFile.type !== 'application/pdf') {
-      alert('Please select a valid PDF file.')
+      setErrorModal({ isOpen: true, title: 'Invalid File Type', message: 'Please select a valid PDF file.' })
       return
     }
 
@@ -259,12 +262,11 @@ export default function ReadingReflectionPage() {
         setSelectedFile(null)
         setShowUploadModal(false)
         await loadReadings()
-        alert(`Successfully processed ${data.reading.chunksProcessed} text chunks and created ${data.reading.embeddingsCreated} embeddings.`)
       }
     } catch (error) {
       console.error('Failed to upload document:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-      alert(`Failed to upload document: ${errorMessage}`)
+      setErrorModal({ isOpen: true, title: 'Upload Failed', message: `Failed to upload document: ${errorMessage}` })
     } finally {
       setIsUploading(false)
     }
@@ -276,7 +278,7 @@ export default function ReadingReflectionPage() {
     const { startPage, endPage, notes, sessionDate } = readingLogForm
     
     if (!startPage || !endPage) {
-      alert('Please enter both start and end page numbers.')
+      setErrorModal({ isOpen: true, title: 'Missing Information', message: 'Please enter both start and end page numbers.' })
       return
     }
 
@@ -284,23 +286,23 @@ export default function ReadingReflectionPage() {
     const endPageNum = parseInt(endPage)
 
     if (isNaN(startPageNum) || isNaN(endPageNum) || startPageNum < 1 || endPageNum < 1) {
-      alert('Please enter valid page numbers (must be positive integers).')
+      setErrorModal({ isOpen: true, title: 'Invalid Page Numbers', message: 'Please enter valid page numbers (must be positive integers).' })
       return
     }
 
     if (startPageNum > endPageNum) {
-      alert('Start page must be less than or equal to end page.')
+      setErrorModal({ isOpen: true, title: 'Invalid Page Range', message: 'Start page must be less than or equal to end page.' })
       return
     }
 
     // Validate against total pages if available
     if (selectedReading.totalPages) {
       if (startPageNum > selectedReading.totalPages) {
-        alert(`Start page (${startPageNum}) cannot exceed the total number of pages in this document (${selectedReading.totalPages}).`)
+        setErrorModal({ isOpen: true, title: 'Page Out of Range', message: `Start page (${startPageNum}) cannot exceed the total number of pages in this document (${selectedReading.totalPages}).` })
         return
       }
       if (endPageNum > selectedReading.totalPages) {
-        alert(`End page (${endPageNum}) cannot exceed the total number of pages in this document (${selectedReading.totalPages}).`)
+        setErrorModal({ isOpen: true, title: 'Page Out of Range', message: `End page (${endPageNum}) cannot exceed the total number of pages in this document (${selectedReading.totalPages}).` })
         return
       }
     }
@@ -340,12 +342,11 @@ export default function ReadingReflectionPage() {
       setSelectedReading(null)
       setShowLogModal(false)
       
-      alert('Reading session logged successfully!')
       await loadReadings()
     } catch (error) {
       console.error('Failed to log reading session:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-      alert(`Failed to log reading session: ${errorMessage}. Please try again.`)
+      setErrorModal({ isOpen: true, title: 'Failed to Log Session', message: `${errorMessage}. Please try again.` })
     } finally {
       setIsSubmittingLog(false)
     }
@@ -418,11 +419,11 @@ export default function ReadingReflectionPage() {
         }
       }
       
-      alert('Reflection generated successfully!')
+      // Success - no alert needed
     } catch (error) {
       console.error('Failed to generate reflection:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-      alert(`Failed to generate reflection: ${errorMessage}`)
+      setErrorModal({ isOpen: true, title: 'Reflection Generation Failed', message: errorMessage })
     } finally {
       setIsGeneratingReflection(false)
     }
@@ -453,14 +454,52 @@ export default function ReadingReflectionPage() {
       }
 
       await loadReadings()
-      alert('Document deleted successfully.')
+      // Success - no alert needed
     } catch (error) {
       console.error('Failed to delete reading:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-      alert(`Failed to delete document: ${errorMessage}`)
+      setErrorModal({ isOpen: true, title: 'Delete Failed', message: `Failed to delete document: ${errorMessage}` })
     } finally {
       setDeletingReadingId(null)
     }
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragOver(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragOver(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragOver(false)
+    
+    const files = Array.from(e.dataTransfer.files)
+    const pdfFile = files.find(file => file.type === 'application/pdf')
+    
+    if (pdfFile) {
+      setSelectedFile(pdfFile)
+    } else {
+      setErrorModal({ isOpen: true, title: 'Invalid File', message: 'Please drop a valid PDF file.' })
+    }
+  }
+
+  const handleFileSelect = (file: File | null) => {
+    if (!file) {
+      setSelectedFile(null)
+      return
+    }
+
+    if (file.type !== 'application/pdf') {
+      setErrorModal({ isOpen: true, title: 'Invalid File Type', message: 'Please select a valid PDF file.' })
+      return
+    }
+
+    setSelectedFile(file)
   }
 
   const filteredReadings = readings.filter(reading => {
@@ -640,14 +679,26 @@ export default function ReadingReflectionPage() {
 
             {/* Quick Action Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-              <div className="paper-card paper-card-interactive paper-spacing-md" onClick={() => setShowUploadModal(true)}>
+              <div 
+                className={`paper-card paper-card-interactive paper-spacing-md transition-all duration-200 ${
+                  isDragOver ? 'border-blue-500 bg-blue-50' : ''
+                }`}
+                onClick={() => setShowUploadModal(true)}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
                 <div className="flex items-center gap-4">
                   <div className="p-3 bg-gray-100 rounded-lg">
                     <Upload className="h-6 w-6 text-gray-700" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-900 mb-1">Upload Document</h3>
-                    <p className="text-sm text-gray-600">Add a new PDF to your library</p>
+                    <h3 className="font-semibold text-gray-900 mb-1">
+                      {isDragOver ? 'Drop PDF here' : 'Upload Document'}
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      {isDragOver ? 'Release to upload' : 'Add a new PDF to your library'}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -666,24 +717,36 @@ export default function ReadingReflectionPage() {
             </div>
 
             {readings.length === 0 ? (
-              <div className="paper-card paper-spacing-lg text-center">
+              <div 
+                className={`paper-card paper-spacing-lg text-center transition-all duration-200 ${
+                  isDragOver ? 'border-blue-500 bg-blue-50' : ''
+                }`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
                 <div className="max-w-md mx-auto">
                   <div className="p-4 bg-gray-100 rounded-full w-fit mx-auto mb-6">
                     <BookOpen className="h-8 w-8 text-gray-600" />
                   </div>
                   <h2 className="heading-secondary text-elegant mb-3">
-                    Begin Your Reading Journey
+                    {isDragOver ? 'Drop your PDF here' : 'Begin Your Reading Journey'}
                   </h2>
                   <p className="text-body text-elegant mb-6">
-                    Upload your first document to start tracking your reading progress and generating thoughtful reflections.
+                    {isDragOver 
+                      ? 'Release to upload your first document' 
+                      : 'Upload your first document to start tracking your reading progress and generating thoughtful reflections.'
+                    }
                   </p>
-                  <button
-                    onClick={() => setShowUploadModal(true)}
-                    className="btn-primary btn-large flex items-center gap-2 mx-auto"
-                  >
-                    <Upload className="h-4 w-4" />
-                    Upload Your First Document
-                  </button>
+                  {!isDragOver && (
+                    <button
+                      onClick={() => setShowUploadModal(true)}
+                      className="btn-primary btn-large flex items-center gap-2 mx-auto"
+                    >
+                      <Upload className="h-4 w-4" />
+                      Upload Your First Document
+                    </button>
+                  )}
                 </div>
               </div>
             ) : (
@@ -812,19 +875,31 @@ export default function ReadingReflectionPage() {
             </div>
             
             {readings.length === 0 ? (
-              <div className="text-center py-12">
+              <div 
+                className={`text-center py-12 transition-all duration-200 ${
+                  isDragOver ? 'border-2 border-dashed border-blue-500 bg-blue-50 rounded-lg' : ''
+                }`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
                 <div className="p-4 bg-gray-100 rounded-full w-fit mx-auto mb-4">
                   <FileText className="h-8 w-8 text-gray-600" />
                 </div>
                 <p className="text-body text-elegant mb-4">
-                  You need to upload documents and log reading sessions before {userAssistantName} can create reflections.
+                  {isDragOver 
+                    ? 'Drop your PDF here to get started' 
+                    : `You need to upload documents and log reading sessions before ${userAssistantName} can create reflections.`
+                  }
                 </p>
-                <button
-                  onClick={() => setShowUploadModal(true)}
-                  className="btn-primary"
-                >
-                  Upload Document
-                </button>
+                {!isDragOver && (
+                  <button
+                    onClick={() => setShowUploadModal(true)}
+                    className="btn-primary"
+                  >
+                    Upload Document
+                  </button>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -1003,11 +1078,20 @@ export default function ReadingReflectionPage() {
                   </button>
                 </div>
 
-                <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-gray-400 transition-colors">
+                <div 
+                  className={`border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200 ${
+                    isDragOver 
+                      ? 'border-blue-500 bg-blue-50 border-2' 
+                      : 'border-gray-300 hover:border-gray-400'
+                  }`}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                >
                   <input
                     type="file"
                     accept=".pdf"
-                    onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                    onChange={(e) => handleFileSelect(e.target.files?.[0] || null)}
                     className="hidden"
                     id="file-upload"
                   />
@@ -1016,13 +1100,25 @@ export default function ReadingReflectionPage() {
                     className="cursor-pointer block"
                   >
                     <div className="space-y-4">
-                      <div className="text-6xl">📄</div>
+                      <div className="text-6xl">
+                        {isDragOver ? '📁' : '📄'}
+                      </div>
                       <div className="text-lg font-medium text-gray-900">
-                        {selectedFile ? selectedFile.name : 'Click to select a PDF file'}
+                        {selectedFile 
+                          ? selectedFile.name 
+                          : isDragOver 
+                            ? 'Drop your PDF file here' 
+                            : 'Click to select or drag & drop a PDF file'
+                        }
                       </div>
                       <div className="text-sm text-gray-500">
                         Only PDF files are supported (max 10MB)
                       </div>
+                      {!selectedFile && !isDragOver && (
+                        <div className="text-xs text-blue-500 mt-2">
+                          Drag and drop your PDF file here, or click to browse
+                        </div>
+                      )}
                     </div>
                   </label>
                 </div>
@@ -1072,22 +1168,34 @@ export default function ReadingReflectionPage() {
                 </div>
                 
                 {readings.length === 0 ? (
-                  <div className="text-center py-12">
+                  <div 
+                    className={`text-center py-12 transition-all duration-200 ${
+                      isDragOver ? 'border-2 border-dashed border-blue-500 bg-blue-50 rounded-lg' : ''
+                    }`}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                  >
                     <div className="p-4 bg-gray-100 rounded-full w-fit mx-auto mb-4">
                       <FileText className="h-8 w-8 text-gray-600" />
                     </div>
                     <p className="text-body text-elegant mb-4">
-                      You need to upload documents before logging reading sessions.
+                      {isDragOver 
+                        ? 'Drop your PDF here to get started' 
+                        : 'You need to upload documents before logging reading sessions.'
+                      }
                     </p>
-                    <button
-                      onClick={() => {
-                        setShowLogModal(false)
-                        setShowUploadModal(true)
-                      }}
-                      className="btn-primary"
-                    >
-                      Upload Document
-                    </button>
+                    {!isDragOver && (
+                      <button
+                        onClick={() => {
+                          setShowLogModal(false)
+                          setShowUploadModal(true)
+                        }}
+                        className="btn-primary"
+                      >
+                        Upload Document
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-6">
@@ -1229,6 +1337,14 @@ export default function ReadingReflectionPage() {
               </div>
           </Modal>
         )}
+
+        {/* Error Modal */}
+        <ErrorModal
+          isOpen={errorModal.isOpen}
+          onClose={() => setErrorModal({ isOpen: false, title: '', message: '' })}
+          title={errorModal.title}
+          message={errorModal.message}
+        />
       </div>
     </div>
   )

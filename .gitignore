@@ -42,7 +42,10 @@ next-env.d.ts
 .idea
 
 # secrets
-client_secret_545446133223-4chjvpbime76ttc89bhkrhflacmkp0gk.apps.googleusercontent.com.json
+client_secret_772857577179-cvvnotg8us5gq9rqhsbfhb4qdmaisceh.apps.googleusercontent.com.json
 
 # keys
 bedrock-long-term-api-key.csv
+
+# Claude
+CLAUDE.md

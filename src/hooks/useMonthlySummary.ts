@@ -3,7 +3,6 @@ import { useSession } from 'next-auth/react'
 import { useE2EE } from '@/hooks/useE2EE'
 import { generateMonthlySummariesForPastMonths } from '@/lib/monthly-summary-utils'
 
-
 export function useMonthlySummary() {
   const { data: session } = useSession()
   const { hasKey, isReady, encrypt, decrypt, userKey } = useE2EE()
@@ -18,7 +17,7 @@ export function useMonthlySummary() {
     try {
       setIsGenerating(true)
 
-      // Fetch user data to get personalized context
+      // Fetch user data to get personalized context and timezone
       const userResponse = await fetch('/api/user/customization')
       if (!userResponse.ok) {
         throw new Error('Failed to fetch user data')
@@ -26,10 +25,11 @@ export function useMonthlySummary() {
 
       const { customization: userData } = await userResponse.json()
       
+      // Get user timezone
+      const userTimezone = userData.timezone || 'UTC'
+      
       // Decrypt user data
       let userFieldsOfStudy = 'academic pursuits' // Default
-      let userAssistantName = 'Claude' // Default
-      let userAssistantPersonality = 'supportive and encouraging' // Default
 
       if (userData.fieldsOfStudy) {
         try {
@@ -40,32 +40,14 @@ export function useMonthlySummary() {
         }
       }
 
-      if (userData.aiAssistantName) {
-        try {
-          const encryptedAssistantName = JSON.parse(userData.aiAssistantName)
-          userAssistantName = await decrypt(encryptedAssistantName)
-        } catch {
-          console.warn('Failed to decrypt assistant name, using default')
-        }
-      }
-
-      if (userData.aiPersonality) {
-        try {
-          const encryptedPersonality = JSON.parse(userData.aiPersonality)
-          userAssistantPersonality = await decrypt(encryptedPersonality)
-        } catch {
-          console.warn('Failed to decrypt assistant personality, using default')
-        }
-      }
-
       console.log('User data for monthly summary generation:', {
-        userFieldsOfStudy,
-        userAssistantName,
-        userAssistantPersonality
+        userTimezone,
+        userFieldsOfStudy
       })
 
       // Use the new function that generates summaries for all past months that need them
       const result = await generateMonthlySummariesForPastMonths(
+        userTimezone,
         userFieldsOfStudy,
         encrypt,
         decrypt

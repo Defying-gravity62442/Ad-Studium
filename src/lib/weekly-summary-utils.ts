@@ -32,6 +32,7 @@ interface WeeklySummary {
  * This consolidates the logic that was duplicated across useWeeklySummary hook and history page
  */
 export async function generateWeeklySummariesForPastWeeks(
+  userTimezone: string = 'UTC',
   userFieldsOfStudy: string = DEFAULT_FIELD_OF_STUDY,
   userAssistantName: string = 'Claude',
   userAssistantPersonality: string = 'supportive and encouraging',
@@ -69,7 +70,7 @@ export async function generateWeeklySummariesForPastWeeks(
     
     allDailySummaries.forEach((summary: DailySummary) => {
       const summaryDate = new Date(summary.journal.date)
-      const { start: weekStart } = getWeekRange(summaryDate, 'UTC')
+      const { start: weekStart } = getWeekRange(summaryDate, userTimezone)
       const weekKey = weekStart.toISOString().split('T')[0] // Use start date as key
       
       if (!weeklyGroups.has(weekKey)) {
@@ -79,7 +80,7 @@ export async function generateWeeklySummariesForPastWeeks(
     })
 
     // Find the next chronological gap
-    const nextGap = findNextWeeklyGap(existingWeeklySummaries, weeklyGroups)
+    const nextGap = findNextWeeklyGap(existingWeeklySummaries, weeklyGroups, userTimezone)
     
     if (!nextGap) {
       console.log('No gaps found in weekly summaries')
@@ -225,7 +226,8 @@ export async function generateWeeklySummariesForPastWeeks(
  */
 function findNextWeeklyGap(
   existingWeeklySummaries: WeeklySummary[], 
-  weeklyGroups: Map<string, DailySummary[]>
+  weeklyGroups: Map<string, DailySummary[]>,
+  userTimezone: string
 ): { weekStart: Date; weekEnd: Date; dailySummaries: DailySummary[] } | null {
   
   // Sort existing weekly summaries by week start date (oldest first)
@@ -243,11 +245,11 @@ function findNextWeeklyGap(
     
     const earliestWeekKey = sortedWeekKeys[0]
     const weekStart = new Date(earliestWeekKey)
-    const { end: weekEnd } = getWeekRange(weekStart, 'UTC')
+    const { end: weekEnd } = getWeekRange(weekStart, userTimezone)
     
     // Check if we should generate a summary for this week (not too recent)
     const isTestMode = process.env.NODE_ENV === 'development' && false
-    const shouldGenerate = isTestMode || shouldGenerateWeeklySummary(weekEnd, 'UTC')
+    const shouldGenerate = isTestMode || shouldGenerateWeeklySummary(weekEnd, userTimezone)
     
     if (shouldGenerate) {
       return {
@@ -272,11 +274,11 @@ function findNextWeeklyGap(
   
   // Check if this next week has daily summaries
   if (weeklyGroups.has(nextWeekKey)) {
-    const { end: nextWeekEnd } = getWeekRange(nextWeekStart, 'UTC')
+    const { end: nextWeekEnd } = getWeekRange(nextWeekStart, userTimezone)
     
     // Check if we should generate a summary for this week (not too recent)
     const isTestMode = process.env.NODE_ENV === 'development' && false
-    const shouldGenerate = isTestMode || shouldGenerateWeeklySummary(nextWeekEnd, 'UTC')
+    const shouldGenerate = isTestMode || shouldGenerateWeeklySummary(nextWeekEnd, userTimezone)
     
     if (shouldGenerate) {
       return {

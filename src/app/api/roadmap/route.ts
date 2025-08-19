@@ -78,20 +78,27 @@ export async function POST(request: NextRequest) {
 
       const currentDate = new Date().toISOString().split('T')[0]
 
-      // Step 1: Search with Perplexity
-      const perplexityService = createPerplexityService()
+      // Step 1: Generate search prompt with Claude Bedrock
+      const bedrockService = createBedrockService()
       
-      const searchResults = await perplexityService.searchForRoadmap({
+      const searchPrompt = await bedrockService.generateSearchPrompt({
         goal: title.trim(),
+        clarifications: '',
         currentDepartment: currentDepartment?.trim(),
         currentInstitution: currentInstitution?.trim(),
         background: background?.trim(),
         currentDate
       })
 
-      // Step 2: Process with Claude Bedrock
-      const bedrockService = createBedrockService()
+      // Step 2: Search with Perplexity using the generated prompt
+      const perplexityService = createPerplexityService()
       
+      const searchResults = await perplexityService.searchWithCustomPrompt({
+        searchPrompt,
+        currentDate
+      })
+
+      // Step 3: Process with Claude Bedrock for roadmap generation
       const generatedRoadmap = await bedrockService.generateRoadmapFromSearch({
         goal: title.trim(),
         searchResults: searchResults.text,
@@ -100,7 +107,6 @@ export async function POST(request: NextRequest) {
         background: background?.trim(),
         currentDate,
         toneInstruction: toneInstruction?.trim(),
-        // Provide Perplexity sources text to nudge Bedrock but we will not use its formatted links
         sourcesText: `\n\nSources from search (for your awareness, do not fabricate):\n${(searchResults.sources || [])
           .map(s => `- ${s.title}: ${s.url}`)
           .join('\n')}`

@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from 'react'
+import { StaggeredItem, Skeleton, Pulse, FadeIn } from '@/components/ui'
 
 interface UpcomingItem {
   id: string
@@ -83,11 +84,24 @@ export default function Upcoming() {
     return 'text-gray-600'
   }
 
+  const isUrgent = (dateString: string) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffInDays = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    return diffInDays <= 1
+  }
+
   if (isLoading) {
     return (
       <div className="bg-white border-2 border-gray-200 rounded-lg p-6">
         <h3 className="text-xl font-semibold text-black mb-4">Upcoming</h3>
-        <div className="text-gray-600">Loading upcoming items...</div>
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <StaggeredItem key={i} index={i} delay={100}>
+              <Skeleton type="rectangle" className="h-16" />
+            </StaggeredItem>
+          ))}
+        </div>
       </div>
     )
   }
@@ -97,8 +111,11 @@ export default function Upcoming() {
       <div className="bg-white border-2 border-gray-200 rounded-lg p-6">
         <h3 className="text-xl font-semibold text-black mb-4">Upcoming</h3>
         <div className="text-center py-8">
+          <div className="text-4xl mb-4 opacity-20">
+            <Pulse>📅</Pulse>
+          </div>
           <p className="text-gray-600 mb-2">No upcoming deadlines or events.</p>
-          <p className="text-sm text-gray-500">Create roadmap goals or sync your calendar to see upcoming items.</p>
+          <p className="text-gray-500 text-sm">Create roadmap milestones or schedule letters to see upcoming items.</p>
         </div>
       </div>
     )
@@ -106,50 +123,42 @@ export default function Upcoming() {
 
   return (
     <div className="bg-white border-2 border-gray-200 rounded-lg p-6">
-      <h3 className="text-xl font-semibold text-black mb-6">Upcoming</h3>
-      
+      <FadeIn>
+        <h3 className="text-xl font-semibold text-black mb-4">Upcoming</h3>
+      </FadeIn>
       <div className="space-y-3">
-        {upcomingItems.slice(0, 5).map((item) => (
-          <div key={item.id} className={`border-l-4 rounded-r-lg p-4 ${getPriorityColor(item.priority)}`}>
-            <div className="flex items-start gap-3">
-              <div className="text-lg">{getTypeIcon(item.type)}</div>
-              
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1">
-                  <h4 className="font-medium text-black truncate">{item.title}</h4>
-                  <span className={`text-sm ${getUrgencyText(item.date)} whitespace-nowrap ml-2`}>
-                    {formatDate(item.date)}
-                  </span>
+        {upcomingItems.map((item, index) => (
+          <StaggeredItem key={item.id} index={index} delay={100}>
+            <div
+              className={`p-4 rounded-lg border-l-4 ${getPriorityColor(item.priority)} transition-all duration-200 hover-lift ${
+                isUrgent(item.date) ? 'animate-pulse' : ''
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div className="text-2xl flex-shrink-0">
+                  {getTypeIcon(item.type)}
                 </div>
-                
-                {item.description && (
-                  <p className="text-sm text-gray-700 mb-2">{item.description}</p>
-                )}
-                
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500 capitalize">{item.type}</span>
-                  <span className="text-xs text-gray-400">•</span>
-                  <span className={`text-xs capitalize ${
-                    item.priority === 'high' ? 'text-red-600' : 
-                    item.priority === 'medium' ? 'text-yellow-600' : 
-                    'text-green-600'
-                  }`}>
-                    {item.priority} priority
-                  </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <h4 className="font-semibold text-gray-900 truncate">{item.title}</h4>
+                    <span className={`text-sm whitespace-nowrap ml-3 font-medium ${getUrgencyText(item.date)}`}>
+                      {formatDate(item.date)}
+                    </span>
+                  </div>
+                  {item.description && (
+                    <p className="text-sm text-gray-600 line-clamp-2">{item.description}</p>
+                  )}
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-xs text-gray-500 font-medium capitalize">{item.type}</span>
+                    <span className="text-xs text-gray-400">•</span>
+                    <span className="text-xs text-gray-500 font-medium capitalize">{item.priority} priority</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          </StaggeredItem>
         ))}
       </div>
-      
-      {upcomingItems.length > 5 && (
-        <div className="mt-4 text-center">
-          <button className="text-sm text-gray-600 hover:text-black border-b border-gray-300 hover:border-black transition-colors">
-            View all upcoming items →
-          </button>
-        </div>
-      )}
     </div>
   )
 }

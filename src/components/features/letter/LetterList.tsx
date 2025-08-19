@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Modal } from '@/components/ui/modal'
+import { ErrorModal } from '@/components/ui/error-modal'
 import { Button } from '@/components/ui'
 
 interface Letter {
@@ -23,6 +24,7 @@ export function LetterList({ letters, onLetterDeleted }: LetterListProps) {
   const [expandedLetter, setExpandedLetter] = useState<string | null>(null)
   const [deletingLetter, setDeletingLetter] = useState<string | null>(null)
   const [isModalVisible, setIsModalVisible] = useState(false)
+  const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; message: string }>({ isOpen: false, title: '', message: '' })
 
   // Handle modal animation timing
   useEffect(() => {
@@ -60,7 +62,7 @@ export function LetterList({ letters, onLetterDeleted }: LetterListProps) {
       onLetterDeleted()
     } catch (err) {
       console.error('Failed to delete letter:', err)
-      alert('Failed to delete letter. Please try again.')
+      setErrorModal({ isOpen: true, title: 'Delete Failed', message: 'Failed to delete letter. Please try again.' })
     } finally {
       setDeletingLetter(null)
     }
@@ -135,7 +137,7 @@ export function LetterList({ letters, onLetterDeleted }: LetterListProps) {
       onLetterDeleted() // Refresh the list
     } catch (err) {
       console.error('Failed to unseal letter:', err)
-      alert('Failed to unseal letter. Please try again.')
+      setErrorModal({ isOpen: true, title: 'Unseal Failed', message: 'Failed to unseal letter. Please try again.' })
     }
   }
 
@@ -335,6 +337,14 @@ export function LetterList({ letters, onLetterDeleted }: LetterListProps) {
           )
         })}
       </div>
+      
+      {/* Error Modal */}
+      <ErrorModal
+        isOpen={errorModal.isOpen}
+        onClose={() => setErrorModal({ isOpen: false, title: '', message: '' })}
+        title={errorModal.title}
+        message={errorModal.message}
+      />
     </div>
   )
 }

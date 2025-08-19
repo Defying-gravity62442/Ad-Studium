@@ -136,34 +136,13 @@ export class PerplexityService {
     })
   }
 
-  async searchForRoadmap(params: {
-    goal: string
-    currentDepartment?: string
-    currentInstitution?: string
-    background?: string
+
+
+  async searchWithCustomPrompt(params: {
+    searchPrompt: string
     currentDate: string
   }): Promise<{ text: string; sources: Array<{ title: string; url: string; date?: string }> }> {
-    const { goal, currentDepartment, currentInstitution, background, currentDate } = params
-
-    const searchPrompt = `You are tasked with gathering accurate, up-to-date academic information to support a user's educational and research ambitions.
-
-User Goal: ${goal}
-User Background: A student studying ${currentDepartment || 'an unspecified field'} at ${currentInstitution || 'an unspecified institution'}${background ? `\n\nAdditional Background: ${background}` : ''}
-
-Example user goals and relevant information to gather:
-- Applying to PhD programs: deadlines, requirements, expectations, program details
-- Exploring research labs: focus areas, team members, outreach protocols, ongoing projects
-- Learning about professors: research interests, publication history, student supervision preferences, contact info
-- Reviewing academic materials: content summaries, reviews, availability, editions
-- Developing new skills: learning roadmaps, resource recommendations, realistic timelines
-
-Requirements:
-- Prioritize official sources (university websites, publisher sites, institutional pages)
-- Ensure information is current as of ${currentDate}. 
-- If the user's goal involves applications but no specific cycle is mentioned, assume they are applying to the current admissions cycle.
-- Include specific dates, deadlines, and contact details when available
-- Flag any outdated or uncertain information
-- Do not fabricate details or make assumptions`
+    const { searchPrompt } = params
 
     const searchResponse = await this.search({
       query: searchPrompt,

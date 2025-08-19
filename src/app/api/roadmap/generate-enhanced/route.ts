@@ -14,6 +14,7 @@ export async function POST(request: NextRequest) {
 
     const { 
       goal, 
+      clarifications,
       currentDepartment, 
       currentInstitution, 
       background,
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
     
     const searchPrompt = await bedrockService.generateSearchPrompt({
       goal: goal.trim(),
-      clarifications: '',
+      clarifications: clarifications?.trim() || '',
       currentDepartment: currentDepartment?.trim(),
       currentInstitution: currentInstitution?.trim(),
       background: background?.trim(),
@@ -78,20 +79,21 @@ export async function POST(request: NextRequest) {
       })),
       metadata: {
         goal,
+        clarifications,
         currentDepartment,
         currentInstitution,
         background,
         processedDate: currentDate,
-        searchResultsLength: searchResults.text.length
+        searchResultsLength: searchResults.text.length,
+        searchPrompt
       }
     }
 
     return NextResponse.json(response)
   } catch (error) {
-    console.error('Roadmap generation failed:', error)
+    console.error('Enhanced roadmap generation failed:', error)
 
     if (error instanceof Error) {
-      // Handle specific error types
       if (error.message.includes('Perplexity')) {
         return NextResponse.json(
           { error: 'Failed to gather research information. Please try again.' },

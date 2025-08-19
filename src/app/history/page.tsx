@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Modal } from '@/components/ui/modal'
+import { ErrorModal } from '@/components/ui/error-modal'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useE2EE } from '@/hooks/useE2EE'
@@ -93,6 +94,8 @@ export default function HistoryPage() {
   const [selectedView, setSelectedView] = useState<'journals' | 'summaries' | 'reflections' | 'logs'>('journals')
   const [showCoolingPeriodMessage, setShowCoolingPeriodMessage] = useState(false)
   const [coolingPeriodMessage, setCoolingPeriodMessage] = useState('')
+  const [deletingReflectionId, setDeletingReflectionId] = useState<string | null>(null)
+  const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; message: string }>({ isOpen: false, title: '', message: '' })
 
 
   useEffect(() => {
@@ -324,11 +327,11 @@ export default function HistoryPage() {
           setJournals(journals.filter(j => j.id !== journal.id))
         } else {
           const error = await response.json()
-          alert(error.error || 'Failed to delete journal')
+          setErrorModal({ isOpen: true, title: 'Delete Failed', message: error.error || 'Failed to delete journal' })
         }
       } catch (error) {
         console.error('Failed to delete journal:', error)
-        alert('Failed to delete journal')
+        setErrorModal({ isOpen: true, title: 'Delete Failed', message: 'Failed to delete journal' })
       }
     }
   }
@@ -350,14 +353,14 @@ export default function HistoryPage() {
         if (response.ok) {
           // Remove from state
           setWeeklySummaries(prev => prev.filter(s => s.id !== summaryId))
-          alert('Weekly summary deleted successfully!')
+          // Success - no alert needed
         } else {
           const error = await response.json()
-          alert(`Failed to delete weekly summary: ${error.error || 'Unknown error'}`)
+          setErrorModal({ isOpen: true, title: 'Delete Failed', message: `Failed to delete weekly summary: ${error.error || 'Unknown error'}` })
         }
       } catch (error) {
         console.error('Failed to delete weekly summary:', error)
-        alert('Failed to delete weekly summary. Please try again.')
+        setErrorModal({ isOpen: true, title: 'Delete Failed', message: 'Failed to delete weekly summary. Please try again.' })
       }
     }
   }
@@ -379,14 +382,14 @@ export default function HistoryPage() {
         if (response.ok) {
           // Remove from state
           setMonthlySummaries(prev => prev.filter(s => s.id !== summaryId))
-          alert('Monthly summary deleted successfully!')
+          // Success - no alert needed
         } else {
           const error = await response.json()
-          alert(`Failed to delete monthly summary: ${error.error || 'Unknown error'}`)
+          setErrorModal({ isOpen: true, title: 'Delete Failed', message: `Failed to delete monthly summary: ${error.error || 'Unknown error'}` })
         }
       } catch (error) {
         console.error('Failed to delete monthly summary:', error)
-        alert('Failed to delete monthly summary. Please try again.')
+        setErrorModal({ isOpen: true, title: 'Delete Failed', message: 'Failed to delete monthly summary. Please try again.' })
       }
     }
   }
@@ -408,14 +411,39 @@ export default function HistoryPage() {
         if (response.ok) {
           // Remove from state
           setYearlySummaries(prev => prev.filter(s => s.id !== summaryId))
-          alert('Yearly summary deleted successfully!')
+          // Success - no alert needed
         } else {
           const error = await response.json()
-          alert(`Failed to delete yearly summary: ${error.error || 'Unknown error'}`)
+          setErrorModal({ isOpen: true, title: 'Delete Failed', message: `Failed to delete yearly summary: ${error.error || 'Unknown error'}` })
         }
       } catch (error) {
         console.error('Failed to delete yearly summary:', error)
-        alert('Failed to delete yearly summary. Please try again.')
+        setErrorModal({ isOpen: true, title: 'Delete Failed', message: 'Failed to delete yearly summary. Please try again.' })
+      }
+    }
+  }
+
+  const handleDeleteReflection = async (reflectionId: string) => {
+    if (confirm('Are you sure you want to delete this reading reflection? This action cannot be undone.')) {
+      setDeletingReflectionId(reflectionId)
+      try {
+        const response = await fetch(`/api/reading/reflect/${reflectionId}`, {
+          method: 'DELETE'
+        })
+
+        if (response.ok) {
+          // Remove from state
+          setReadingReflections(prev => prev.filter(r => r.id !== reflectionId))
+          // Success - no alert needed
+        } else {
+          const error = await response.json()
+          setErrorModal({ isOpen: true, title: 'Delete Failed', message: `Failed to delete reflection: ${error.error || 'Unknown error'}` })
+        }
+      } catch (error) {
+        console.error('Failed to delete reflection:', error)
+        setErrorModal({ isOpen: true, title: 'Delete Failed', message: 'Failed to delete reflection. Please try again.' })
+      } finally {
+        setDeletingReflectionId(null)
       }
     }
   }
@@ -449,11 +477,11 @@ export default function HistoryPage() {
         }))
       } else {
         const error = await response.json()
-        alert(`Failed to update summary: ${error.error || 'Unknown error'}`)
+        setErrorModal({ isOpen: true, title: 'Update Failed', message: `Failed to update summary: ${error.error || 'Unknown error'}` })
       }
     } catch (error) {
       console.error('Failed to toggle hidden from AI:', error)
-      alert('Failed to update summary. Please try again.')
+      setErrorModal({ isOpen: true, title: 'Update Failed', message: 'Failed to update summary. Please try again.' })
     }
   }
 
@@ -536,12 +564,10 @@ export default function HistoryPage() {
           </div>
         ) : selectedView === 'journals' ? (
           <div className="paper-list">
-            {/* AI Privacy Controls Info */}
             <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-              <h3 className="text-sm font-medium text-paper mb-2 text-elegant">AI Privacy Controls</h3>
+              <h3 className="text-sm font-medium text-paper mb-2 text-elegant">Cooling Period</h3>
               <p className="text-sm text-paper-secondary text-elegant">
-                You can hide specific daily summaries from AI processing. Hidden summaries won&apos;t be used to generate weekly/monthly summaries or provide context for AI conversations. 
-                This helps you maintain privacy over sensitive content while still benefiting from AI assistance for other entries.
+              I know I, like many others, have a tendency to second-guess my own thoughts and feelings. To support more authentic self-reflection, I&apos;ve set a 7-day cooling period for journal entries. During this time, entries cannot be edited or deleted. However, you can choose to hide specific daily summaries from AI processing. Hidden summaries will not contribute to weekly or monthly reports, nor will they be used as context in AI conversations. 
               </p>
             </div>
             
@@ -664,13 +690,34 @@ export default function HistoryPage() {
               readingReflections.map((reflection) => (
                 <div key={reflection.id} className="paper-card">
                   <div className="mb-4">
-                    <h3 className="card-title text-elegant mb-2">
-                      Reading Reflection
-                    </h3>
-                    <p className="text-sm text-gray-500 text-elegant">
-                      Document: {(reflection.reading as any).decryptedTitle} • 
-                      {new Date(reflection.createdAt).toLocaleDateString()}
-                    </p>
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h3 className="card-title text-elegant mb-2">
+                          Reading Reflection
+                        </h3>
+                        <p className="text-sm text-gray-500 text-elegant">
+                          Document: {(reflection.reading as any).decryptedTitle} • 
+                          {new Date(reflection.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteReflection(reflection.id)}
+                        disabled={deletingReflectionId === reflection.id}
+                        className="text-red-500 hover:text-red-700 transition-colors p-1 rounded disabled:opacity-50"
+                        title="Delete reflection"
+                      >
+                        {deletingReflectionId === reflection.id ? (
+                          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        ) : (
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
                   </div>
                   
                   {(reflection as any).decryptedData ? (
@@ -865,6 +912,14 @@ export default function HistoryPage() {
             </div>
           </Modal>
         )}
+
+        {/* Error Modal */}
+        <ErrorModal
+          isOpen={errorModal.isOpen}
+          onClose={() => setErrorModal({ isOpen: false, title: '', message: '' })}
+          title={errorModal.title}
+          message={errorModal.message}
+        />
       </div>
     </div>
   )

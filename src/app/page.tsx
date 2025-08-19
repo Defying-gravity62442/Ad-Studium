@@ -404,7 +404,7 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="py-12 bg-black border-t border-gray-800">
+      <footer className="py-12 bg-black">
         <div className="content-wrapper-7xl">
           <div className="text-center">
             <div className="flex items-center justify-center mb-6">

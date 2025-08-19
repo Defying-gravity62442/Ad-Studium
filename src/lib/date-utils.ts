@@ -156,7 +156,9 @@ export function getMonthRange(date: Date, userTimezone: string): { start: Date, 
   const start = new Date(localDate.getFullYear(), localDate.getMonth(), 1)
   start.setHours(3, 0, 0, 0)
   
-  const end = new Date(localDate.getFullYear(), localDate.getMonth() + 1, 0)
+  // Create end date by going to the first day of next month, then subtracting 1 day
+  const end = new Date(localDate.getFullYear(), localDate.getMonth() + 1, 1)
+  end.setDate(end.getDate() - 1) // Last day of current month
   end.setHours(3, 0, 0, 0)
   
   return { start, end }

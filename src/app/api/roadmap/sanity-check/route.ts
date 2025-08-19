@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { createPerplexityService } from '@/lib/ai/perplexity'
 import { createBedrockService } from '@/lib/ai/bedrock'
 
 export async function POST(request: NextRequest) {
@@ -11,7 +10,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { goal, currentDepartment, currentInstitution, background } = await request.json()
+    const { 
+      goal, 
+      currentDepartment, 
+      currentInstitution, 
+      background
+    } = await request.json()
 
     if (!goal || typeof goal !== 'string' || goal.trim().length === 0) {
       return NextResponse.json(
@@ -20,53 +24,37 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const currentDate = new Date().toISOString().split('T')[0]
-
-    // Generate search prompt with Claude Bedrock
     const bedrockService = createBedrockService()
     
-    const searchPrompt = await bedrockService.generateSearchPrompt({
+    const sanityCheck = await bedrockService.checkGoalSanity({
       goal: goal.trim(),
-      clarifications: '',
       currentDepartment: currentDepartment?.trim(),
       currentInstitution: currentInstitution?.trim(),
-      background: background?.trim(),
-      currentDate
+      background: background?.trim()
     })
 
-    // Search with Perplexity using the generated prompt
-    const perplexityService = createPerplexityService()
-    
-    const searchResults = await perplexityService.searchWithCustomPrompt({
-      searchPrompt,
-      currentDate
-    })
-
-    return NextResponse.json({
-      searchResults: searchResults.text,
-      sources: searchResults.sources,
-      metadata: {
-        goal,
-        currentDepartment,
-        currentInstitution,
-        background,
-        searchDate: currentDate
-      }
-    })
+    return NextResponse.json(sanityCheck)
   } catch (error) {
-    console.error('Perplexity search failed:', error)
+    console.error('Goal sanity check failed:', error)
 
     if (error instanceof Error) {
-      if (error.message.includes('API key')) {
+      if (error.message.includes('Bedrock')) {
         return NextResponse.json(
-          { error: 'Perplexity API configuration error' },
+          { error: 'Failed to analyze goal. Please try again.' },
+          { status: 500 }
+        )
+      }
+
+      if (error.message.includes('API key') || error.message.includes('configuration')) {
+        return NextResponse.json(
+          { error: 'Service configuration error' },
           { status: 500 }
         )
       }
       
       if (error.message.includes('401') || error.message.includes('403')) {
         return NextResponse.json(
-          { error: 'Perplexity API authentication failed' },
+          { error: 'Authentication failed with external services' },
           { status: 500 }
         )
       }
@@ -80,7 +68,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: 'Failed to search for roadmap information' },
+      { error: 'Failed to analyze goal' },
       { status: 500 }
     )
   }

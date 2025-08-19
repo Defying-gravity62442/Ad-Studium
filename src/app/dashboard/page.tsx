@@ -8,6 +8,7 @@ import { useDailySummary } from "@/hooks/useDailySummary"
 import { useWeeklySummary } from "@/hooks/useWeeklySummary"
 import { useMonthlySummary } from "@/hooks/useMonthlySummary"
 import { useYearlySummary } from "@/hooks/useYearlySummary"
+import { ErrorModal } from '@/components/ui/error-modal'
 import ReadingStats from "@/components/ReadingStats"
 import ProofOfProgress from "@/components/ProofOfProgress"
 import MoodTracking from "@/components/MoodTracking"
@@ -42,6 +43,7 @@ export default function Dashboard() {
   const [upcomingItems, setUpcomingItems] = useState<UpcomingItem[]>([])
   const [showLetterNotification, setShowLetterNotification] = useState(false)
   const [currentTime, setCurrentTime] = useState(new Date())
+  const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; message: string }>({ isOpen: false, title: '', message: '' })
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000)
@@ -212,7 +214,7 @@ export default function Dashboard() {
       localStorage.removeItem('letterNotificationDate')
     } catch (error) {
       console.error('Failed to unseal letter:', error)
-      alert('Failed to unseal letter. Please try again.')
+      setErrorModal({ isOpen: true, title: 'Unseal Failed', message: 'Failed to unseal letter. Please try again.' })
     }
   }
 
@@ -410,6 +412,14 @@ export default function Dashboard() {
           onUnseal={handleLetterUnseal}
         />
       )}
+      
+      {/* Error Modal */}
+      <ErrorModal
+        isOpen={errorModal.isOpen}
+        onClose={() => setErrorModal({ isOpen: false, title: '', message: '' })}
+        title={errorModal.title}
+        message={errorModal.message}
+      />
     </div>
   )
 }

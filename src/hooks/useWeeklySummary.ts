@@ -3,7 +3,6 @@ import { useSession } from 'next-auth/react'
 import { useE2EE } from '@/hooks/useE2EE'
 import { generateWeeklySummariesForPastWeeks } from '@/lib/weekly-summary-utils'
 
-
 export function useWeeklySummary() {
   const { data: session } = useSession()
   const { hasKey, isReady, encrypt, decrypt, userKey } = useE2EE()
@@ -18,13 +17,16 @@ export function useWeeklySummary() {
     try {
       setIsGenerating(true)
 
-      // Fetch user data to get personalized context
+      // Fetch user data to get personalized context and timezone
       const userResponse = await fetch('/api/user/customization')
       if (!userResponse.ok) {
         throw new Error('Failed to fetch user data')
       }
 
       const { customization: userData } = await userResponse.json()
+      
+      // Get user timezone
+      const userTimezone = userData.timezone || 'UTC'
       
       // Decrypt user data
       let userFieldsOfStudy = 'academic pursuits' // Default
@@ -59,6 +61,7 @@ export function useWeeklySummary() {
       }
 
       console.log('User data for weekly summary generation:', {
+        userTimezone,
         userFieldsOfStudy,
         userAssistantName,
         userAssistantPersonality
@@ -66,6 +69,7 @@ export function useWeeklySummary() {
 
       // Use the new function that generates summaries for all past weeks that need them
       const result = await generateWeeklySummariesForPastWeeks(
+        userTimezone,
         userFieldsOfStudy,
         userAssistantName,
         userAssistantPersonality,

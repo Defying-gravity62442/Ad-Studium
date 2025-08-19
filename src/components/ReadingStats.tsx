@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useE2EE } from '@/hooks/useE2EE'
 import { calculateUniquePages, calculateUniquePagesPerDocument, calculateReadingProgress } from '@/lib/utils/reading-progress'
+import { CountUp, AnimatedProgressBar, StaggeredItem, Skeleton } from '@/components/ui'
 
 // Import test function for debugging
 import { runTests } from '@/lib/utils/reading-progress.test'
@@ -65,6 +66,7 @@ interface DecryptedReadingLog {
 export default function ReadingStats() {
   const [stats, setStats] = useState<ReadingStats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [hasAnimated, setHasAnimated] = useState(false)
   const { isReady, hasKey, decrypt } = useE2EE()
 
   useEffect(() => {
@@ -75,6 +77,14 @@ export default function ReadingStats() {
       setIsLoading(false)
     }
   }, [isReady, hasKey])
+
+  useEffect(() => {
+    if (stats && !hasAnimated) {
+      // Trigger animations after a short delay
+      const timer = setTimeout(() => setHasAnimated(true), 100)
+      return () => clearTimeout(timer)
+    }
+  }, [stats, hasAnimated])
 
   const fetchStats = async () => {
     try {
@@ -414,19 +424,19 @@ export default function ReadingStats() {
       {/* Overview Cards */}
       <div className="grid grid-cols-2 gap-4">
         <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-200">
-          <div className="text-2xl font-bold text-gray-900 mb-1">{stats.overview.totalPagesRead}</div>
+          <div className="text-2xl font-bold text-gray-900 mb-1"><CountUp value={stats.overview.totalPagesRead} /></div>
           <div className="text-xs text-gray-600 font-medium">Total Pages</div>
         </div>
         <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-200">
-          <div className="text-2xl font-bold text-gray-900 mb-1">{stats.overview.totalDocuments}</div>
+          <div className="text-2xl font-bold text-gray-900 mb-1"><CountUp value={stats.overview.totalDocuments} /></div>
           <div className="text-xs text-gray-600 font-medium">Documents</div>
         </div>
         <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-200">
-          <div className="text-2xl font-bold text-gray-900 mb-1">{stats.overview.readingStreak}</div>
+          <div className="text-2xl font-bold text-gray-900 mb-1"><CountUp value={stats.overview.readingStreak} /></div>
           <div className="text-xs text-gray-600 font-medium">Day Streak</div>
         </div>
         <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-200">
-          <div className="text-2xl font-bold text-gray-900 mb-1">{stats.overview.recentPagesRead}</div>
+          <div className="text-2xl font-bold text-gray-900 mb-1"><CountUp value={stats.overview.recentPagesRead} /></div>
           <div className="text-xs text-gray-600 font-medium">Pages (30d)</div>
         </div>
       </div>
@@ -441,11 +451,11 @@ export default function ReadingStats() {
                 Week {index + 1}
               </div>
               <div className="flex-1 bg-gray-200 rounded-full h-3 relative">
-                <div
-                  className="bg-gray-800 rounded-full h-3 transition-all duration-500"
-                  style={{
-                    width: maxWeeklyPages > 0 ? `${(week.pages / maxWeeklyPages) * 100}%` : '0%'
-                  }}
+                <AnimatedProgressBar
+                  percentage={maxWeeklyPages > 0 ? (week.pages / maxWeeklyPages) * 100 : 0}
+                  height="h-3"
+                  color="bg-gray-800"
+                  delay={index * 100} // Stagger animations
                 />
               </div>
               <div className="w-12 text-sm text-gray-700 font-semibold text-right">
@@ -462,7 +472,7 @@ export default function ReadingStats() {
         <div>
           <h4 className="text-sm font-semibold mb-4 text-gray-900">Pages Read by Document</h4>
           <div className="space-y-3">
-            {stats.documentBreakdown.slice(0, 4).map((doc) => (
+            {stats.documentBreakdown.slice(0, 4).map((doc, index) => (
               <div key={doc.docToken} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-gray-900 truncate mb-2">
@@ -470,11 +480,11 @@ export default function ReadingStats() {
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="flex-1 bg-gray-200 rounded-full h-2">
-                      <div
-                        className="bg-gray-800 rounded-full h-2 transition-all duration-500"
-                        style={{
-                          width: maxDocumentPages > 0 ? `${(doc.pages / maxDocumentPages) * 100}%` : '0%'
-                        }}
+                      <AnimatedProgressBar
+                        percentage={maxDocumentPages > 0 ? (doc.pages / maxDocumentPages) * 100 : 0}
+                        height="h-2"
+                        color="bg-gray-800"
+                        delay={index * 100} // Stagger animations
                       />
                     </div>
                     <div className="text-xs text-gray-600 w-10 text-right font-semibold">
@@ -491,7 +501,7 @@ export default function ReadingStats() {
         <div>
           <h4 className="text-sm font-semibold mb-4 text-gray-900">Reading Progress</h4>
           <div className="space-y-3">
-            {stats.completionRates.slice(0, 4).map((doc) => (
+            {stats.completionRates.slice(0, 4).map((doc, index) => (
               <div key={doc.docToken} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-gray-900 truncate mb-2">
@@ -499,9 +509,11 @@ export default function ReadingStats() {
                   </div>
                   <div className="flex items-center gap-3 mb-2">
                     <div className="flex-1 bg-gray-200 rounded-full h-2">
-                      <div
-                        className="bg-gray-800 rounded-full h-2 transition-all duration-500"
-                        style={{ width: `${Math.min(100, doc.percentage)}%` }}
+                      <AnimatedProgressBar
+                        percentage={Math.min(100, doc.percentage)}
+                        height="h-2"
+                        color="bg-gray-800"
+                        delay={index * 100} // Stagger animations
                       />
                     </div>
                     <div className="text-xs text-gray-600 w-12 text-right font-semibold">

@@ -6,13 +6,14 @@ import { useSession } from 'next-auth/react'
 import { useE2EE } from '@/hooks/useE2EE'
 
 export default function CreateRoadmapPage() {
-  const [step, setStep] = useState<'input' | 'review' | 'saving'>('input')
+  const [step, setStep] = useState<'input' | 'sanity-check' | 'review' | 'saving'>('input')
   const [isCreating, setIsCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
   // Loading animation state
   const [currentLoadingPhrase, setCurrentLoadingPhrase] = useState(0)
   const loadingPhrases = [
+    "Analyzing your goal for completeness...",
     "Researching accurate and up-to-date information...",
     "Tailoring your roadmap just for you...",
     "Breaking it down into simple steps...",
@@ -27,6 +28,15 @@ export default function CreateRoadmapPage() {
   const [currentDepartment, setCurrentDepartment] = useState('')
   const [currentInstitution, setCurrentInstitution] = useState('')
   const [background, setBackground] = useState('')
+  
+  // Sanity check state
+  const [sanityCheck, setSanityCheck] = useState<{
+    missingInfo: string[]
+    clarifications: string[]
+  } | null>(null)
+  
+  // Clarification state
+  const [clarifications, setClarifications] = useState('')
   
   // Dynamic placeholder state
   const [currentPlaceholderIndex, setCurrentPlaceholderIndex] = useState(0)
@@ -128,7 +138,7 @@ export default function CreateRoadmapPage() {
     loadUserCustomization()
   }, [isReady, hasKey, decrypt])
 
-  const handleGenerateRoadmap = async () => {
+  const handleSanityCheck = async () => {
     if (!roadmapTitle.trim()) {
       setError('Please provide a roadmap title')
       return
@@ -141,16 +151,50 @@ export default function CreateRoadmapPage() {
 
     setIsCreating(true)
     setError(null)
-    setCurrentLoadingPhrase(0) // Reset to first phrase
+    setCurrentLoadingPhrase(0)
 
     try {
-      // Generate roadmap with AI
-      const response = await fetch('/api/roadmap', {
+      // Step 1: Sanity check with Claude Bedrock
+      const response = await fetch('/api/roadmap/sanity-check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: roadmapTitle.trim(),
-          generateWithAI: true,
+          goal: roadmapTitle.trim(),
+          currentDepartment: currentDepartment.trim() || undefined,
+          currentInstitution: currentInstitution.trim() || undefined,
+          background: background.trim() || undefined
+        })
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to analyze goal')
+      }
+
+      const sanityCheckResult = await response.json()
+      setSanityCheck(sanityCheckResult)
+      setStep('sanity-check')
+    } catch (err) {
+      console.error('Error during sanity check:', err)
+      setError(err instanceof Error ? err.message : 'Failed to analyze goal')
+    } finally {
+      setIsCreating(false)
+    }
+  }
+
+  const handleGenerateRoadmap = async () => {
+    setIsCreating(true)
+    setError(null)
+    setCurrentLoadingPhrase(0)
+
+    try {
+      // Generate roadmap with enhanced AI system
+      const response = await fetch('/api/roadmap/generate-enhanced', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          goal: roadmapTitle.trim(),
+          clarifications: clarifications.trim() || undefined,
           currentDepartment: currentDepartment.trim() || undefined,
           currentInstitution: currentInstitution.trim() || undefined,
           background: background.trim() || undefined
@@ -162,13 +206,19 @@ export default function CreateRoadmapPage() {
         throw new Error(data.error || 'Failed to generate roadmap')
       }
 
-      const { aiRoadmap: generatedRoadmap } = await response.json()
+      const generatedRoadmap = await response.json()
       
       // Set review state
       setAiRoadmap(generatedRoadmap)
-      setReviewTitle(generatedRoadmap.title)
-      setReviewDescription(generatedRoadmap.description || '')
-      setReviewMilestones([...generatedRoadmap.milestones])
+      setReviewTitle(generatedRoadmap.roadmap_title || generatedRoadmap.title)
+      setReviewDescription(generatedRoadmap.message || generatedRoadmap.description || '')
+      // Transform milestones from Bedrock format to UI format
+      const transformedMilestones = generatedRoadmap.milestones.map((milestone: any) => ({
+        title: milestone.action || milestone.title,
+        description: milestone.notes || milestone.description,
+        dueDate: milestone.deadline || milestone.dueDate
+      }))
+      setReviewMilestones(transformedMilestones)
       setStep('review')
     } catch (err) {
       console.error('Error generating roadmap:', err)
@@ -176,6 +226,19 @@ export default function CreateRoadmapPage() {
     } finally {
       setIsCreating(false)
     }
+  }
+
+  const handleProceedWithClarifications = async () => {
+    if (!clarifications.trim()) {
+      setError('Please provide clarifications or additional information')
+      return
+    }
+    await handleGenerateRoadmap()
+  }
+
+  const handleSkipClarifications = async () => {
+    setClarifications('')
+    await handleGenerateRoadmap()
   }
 
   const handleSaveRoadmap = async () => {
@@ -343,7 +406,7 @@ export default function CreateRoadmapPage() {
 
               <div className="flex justify-center pt-6">
                 <button
-                  onClick={handleGenerateRoadmap}
+                  onClick={handleSanityCheck}
                   disabled={isCreating || !roadmapTitle.trim()}
                   className={`px-8 py-4 rounded-lg font-medium text-lg transition-colors duration-200 min-w-[200px] ${
                     !isCreating && roadmapTitle.trim()
@@ -357,7 +420,74 @@ export default function CreateRoadmapPage() {
             </div>
           )}
 
-          {/* Step 2: Review & Edit */}
+          {/* Step 2: Sanity Check */}
+          {step === 'sanity-check' && sanityCheck && (
+            <div className="space-y-6">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-yellow-800 mb-3">
+                  ⚠️ Goal Analysis Results
+                </h3>
+                {sanityCheck.missingInfo.length > 0 && (
+                  <div className="mb-3">
+                    <p className="text-sm font-medium text-yellow-700 mb-1">Missing Information:</p>
+                    <ul className="list-disc list-inside text-sm text-gray-700 ml-2">
+                      {sanityCheck.missingInfo.map((info, index) => (
+                        <li key={index}>{info}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {sanityCheck.clarifications.length > 0 && (
+                  <div className="mb-3">
+                    <p className="text-sm font-medium text-yellow-700 mb-1">Clarifications Needed:</p>
+                    <ul className="list-disc list-inside text-sm text-gray-700 ml-2">
+                      {sanityCheck.clarifications.map((clarification, index) => (
+                        <li key={index}>{clarification}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-900 mb-2">
+                  Please provide clarifications or additional information to help generate a more accurate roadmap:
+                </label>
+                <textarea
+                  value={clarifications}
+                  onChange={(e) => setClarifications(e.target.value)}
+                  rows={5}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+                />
+              </div>
+
+              <div className="flex justify-center pt-6 space-x-4">
+                <button
+                  onClick={handleProceedWithClarifications}
+                  disabled={isCreating || !clarifications.trim()}
+                  className={`px-8 py-4 rounded-lg font-medium text-lg transition-colors duration-200 min-w-[200px] ${
+                    !isCreating && clarifications.trim()
+                      ? 'bg-black text-white hover:bg-gray-800'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  {isCreating ? loadingPhrases[currentLoadingPhrase] : 'Generate Roadmap'}
+                </button>
+                {!isCreating && (
+                  <button
+                    onClick={handleSkipClarifications}
+                    className="px-8 py-4 rounded-lg font-medium text-lg transition-colors duration-200 min-w-[200px] bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  >
+                    Skip Clarifications
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+
+
+          {/* Step 4: Review & Edit */}
           {step === 'review' && aiRoadmap && (
             <div className="space-y-6">
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
@@ -628,7 +758,7 @@ export default function CreateRoadmapPage() {
             </div>
           )}
 
-          {/* Step 3: Saving */}
+          {/* Step 5: Saving */}
           {step === 'saving' && (
             <div className="text-center py-12">
               <div className="text-xl text-gray-600 mb-4">Saving your roadmap...</div>

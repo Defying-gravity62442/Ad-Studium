@@ -17,7 +17,7 @@ export function useYearlySummary() {
     try {
       setIsGenerating(true)
 
-      // Fetch user data to get personalized context
+      // Fetch user data to get personalized context and timezone
       const userResponse = await fetch('/api/user/customization')
       if (!userResponse.ok) {
         throw new Error('Failed to fetch user data')
@@ -25,10 +25,11 @@ export function useYearlySummary() {
 
       const { customization: userData } = await userResponse.json()
       
+      // Get user timezone
+      const userTimezone = userData.timezone || 'UTC'
+      
       // Decrypt user data
       let userFieldsOfStudy = 'academic pursuits' // Default
-      let userAssistantName = 'Claude' // Default
-      let userAssistantPersonality = 'supportive and encouraging' // Default
 
       if (userData.fieldsOfStudy) {
         try {
@@ -39,35 +40,17 @@ export function useYearlySummary() {
         }
       }
 
-      if (userData.aiAssistantName) {
-        try {
-          const encryptedAssistantName = JSON.parse(userData.aiAssistantName)
-          userAssistantName = await decrypt(encryptedAssistantName)
-        } catch {
-          console.warn('Failed to decrypt assistant name, using default')
-        }
-      }
-
-      if (userData.aiPersonality) {
-        try {
-          const encryptedPersonality = JSON.parse(userData.aiPersonality)
-          userAssistantPersonality = await decrypt(encryptedPersonality)
-        } catch {
-          console.warn('Failed to decrypt assistant personality, using default')
-        }
-      }
-
       console.log('User data for yearly summary generation:', {
-        userFieldsOfStudy,
-        userAssistantName,
-        userAssistantPersonality
+        userTimezone,
+        userFieldsOfStudy
       })
 
       // Use the new function that generates summaries for all past years that need them
       const result = await generateYearlySummariesForPastYears(
+        userTimezone,
         userFieldsOfStudy,
-        userAssistantName,
-        userAssistantPersonality,
+        'Claude', // userAssistantName
+        'supportive and encouraging', // userAssistantPersonality
         encrypt,
         decrypt
       )

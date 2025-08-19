@@ -34,6 +34,7 @@ interface MonthlySummary {
  * This consolidates the logic that was duplicated across useMonthlySummary hook and history page
  */
 export async function generateMonthlySummariesForPastMonths(
+  userTimezone: string = 'UTC',
   userFieldsOfStudy: string = DEFAULT_FIELD_OF_STUDY,
   encrypt: (data: string) => Promise<unknown>,
   decrypt: (data: any) => Promise<string>,
@@ -68,18 +69,36 @@ export async function generateMonthlySummariesForPastMonths(
     const monthlyGroups = new Map<string, WeeklySummary[]>()
     
     allWeeklySummaries.forEach((summary: WeeklySummary) => {
-      const summaryDate = new Date(summary.startDate)
-      const { start: monthStart } = getMonthRange(summaryDate, 'UTC')
-      const monthKey = monthStart.toISOString().split('T')[0] // Use start date as key
-      
-      if (!monthlyGroups.has(monthKey)) {
-        monthlyGroups.set(monthKey, [])
+      try {
+        const summaryDate = new Date(summary.startDate)
+        
+        // Validate the date
+        if (isNaN(summaryDate.getTime())) {
+          console.warn(`Invalid startDate in weekly summary: ${summary.startDate}`)
+          return
+        }
+        
+        const { start: monthStart } = getMonthRange(summaryDate, userTimezone)
+        
+        // Validate the month start date
+        if (isNaN(monthStart.getTime())) {
+          console.warn(`Invalid month start date for summary: ${summary.startDate}`)
+          return
+        }
+        
+        const monthKey = monthStart.toISOString().split('T')[0] // Use start date as key
+        
+        if (!monthlyGroups.has(monthKey)) {
+          monthlyGroups.set(monthKey, [])
+        }
+        monthlyGroups.get(monthKey)!.push(summary)
+      } catch (error) {
+        console.error(`Error processing weekly summary with startDate ${summary.startDate}:`, error)
       }
-      monthlyGroups.get(monthKey)!.push(summary)
     })
 
     // Find the next chronological gap
-    const nextGap = findNextMonthlyGap(existingMonthlySummaries, monthlyGroups)
+    const nextGap = findNextMonthlyGap(existingMonthlySummaries, monthlyGroups, userTimezone)
     
     if (!nextGap) {
       console.log('No gaps found in monthly summaries')
@@ -223,7 +242,8 @@ export async function generateMonthlySummariesForPastMonths(
  */
 function findNextMonthlyGap(
   existingMonthlySummaries: MonthlySummary[], 
-  monthlyGroups: Map<string, WeeklySummary[]>
+  monthlyGroups: Map<string, WeeklySummary[]>,
+  userTimezone: string
 ): { monthStart: Date; monthEnd: Date; weeklySummaries: WeeklySummary[] } | null {
   
   // Sort existing monthly summaries by month start date (oldest first)
@@ -239,50 +259,89 @@ function findNextMonthlyGap(
       return null
     }
     
-    const earliestMonthKey = sortedMonthKeys[0]
-    const monthStart = new Date(earliestMonthKey)
-    const { end: monthEnd } = getMonthRange(monthStart, 'UTC')
-    
-    // Check if we should generate a summary for this month (not too recent)
-    const isTestMode = process.env.NODE_ENV === 'development' && false
-    const shouldGenerate = isTestMode || shouldGenerateMonthlySummary(monthEnd, 'UTC')
-    
-    if (shouldGenerate) {
-      return {
-        monthStart,
-        monthEnd,
-        weeklySummaries: monthlyGroups.get(earliestMonthKey)!
+    try {
+      const earliestMonthKey = sortedMonthKeys[0]
+      const monthStart = new Date(earliestMonthKey)
+      
+      // Validate the month start date
+      if (isNaN(monthStart.getTime())) {
+        console.warn(`Invalid earliest month key: ${earliestMonthKey}`)
+        return null
       }
+      
+      const { end: monthEnd } = getMonthRange(monthStart, userTimezone)
+      
+      // Validate the month end date
+      if (isNaN(monthEnd.getTime())) {
+        console.warn(`Invalid month end date for month start: ${earliestMonthKey}`)
+        return null
+      }
+      
+      // Check if we should generate a summary for this month (not too recent)
+      const isTestMode = process.env.NODE_ENV === 'development' && false
+      const shouldGenerate = isTestMode || shouldGenerateMonthlySummary(monthEnd, userTimezone)
+      
+      if (shouldGenerate) {
+        return {
+          monthStart,
+          monthEnd,
+          weeklySummaries: monthlyGroups.get(earliestMonthKey)!
+        }
+      }
+    } catch (error) {
+      console.error('Error processing earliest month:', error)
     }
     
     return null
   }
 
   // Find the next gap after the latest monthly summary
-  const latestMonthlySummary = sortedMonthlySummaries[sortedMonthlySummaries.length - 1]
-  const latestMonthStart = new Date(latestMonthlySummary.monthStartDate)
-  
-  // Find the next month after the latest monthly summary
-  const nextMonthStart = new Date(latestMonthStart)
-  nextMonthStart.setMonth(nextMonthStart.getMonth() + 1)
-  
-  const nextMonthKey = nextMonthStart.toISOString().split('T')[0]
-  
-  // Check if this next month has weekly summaries
-  if (monthlyGroups.has(nextMonthKey)) {
-    const { end: nextMonthEnd } = getMonthRange(nextMonthStart, 'UTC')
+  try {
+    const latestMonthlySummary = sortedMonthlySummaries[sortedMonthlySummaries.length - 1]
+    const latestMonthStart = new Date(latestMonthlySummary.monthStartDate)
     
-    // Check if we should generate a summary for this month (not too recent)
-    const isTestMode = process.env.NODE_ENV === 'development' && false
-    const shouldGenerate = isTestMode || shouldGenerateMonthlySummary(nextMonthEnd, 'UTC')
+    // Validate the latest month start date
+    if (isNaN(latestMonthStart.getTime())) {
+      console.warn(`Invalid latest month start date: ${latestMonthlySummary.monthStartDate}`)
+      return null
+    }
     
-    if (shouldGenerate) {
-      return {
-        monthStart: nextMonthStart,
-        monthEnd: nextMonthEnd,
-        weeklySummaries: monthlyGroups.get(nextMonthKey)!
+    // Find the next month after the latest monthly summary
+    const nextMonthStart = new Date(latestMonthStart)
+    nextMonthStart.setMonth(nextMonthStart.getMonth() + 1)
+    
+    // Validate the next month start date
+    if (isNaN(nextMonthStart.getTime())) {
+      console.warn(`Invalid next month start date for latest: ${latestMonthlySummary.monthStartDate}`)
+      return null
+    }
+    
+    const nextMonthKey = nextMonthStart.toISOString().split('T')[0]
+    
+    // Check if this next month has weekly summaries
+    if (monthlyGroups.has(nextMonthKey)) {
+      const { end: nextMonthEnd } = getMonthRange(nextMonthStart, userTimezone)
+      
+      // Validate the next month end date
+      if (isNaN(nextMonthEnd.getTime())) {
+        console.warn(`Invalid next month end date for month start: ${nextMonthKey}`)
+        return null
+      }
+      
+      // Check if we should generate a summary for this month (not too recent)
+      const isTestMode = process.env.NODE_ENV === 'development' && false
+      const shouldGenerate = isTestMode || shouldGenerateMonthlySummary(nextMonthEnd, userTimezone)
+      
+      if (shouldGenerate) {
+        return {
+          monthStart: nextMonthStart,
+          monthEnd: nextMonthEnd,
+          weeklySummaries: monthlyGroups.get(nextMonthKey)!
+        }
       }
     }
+  } catch (error) {
+    console.error('Error processing next month gap:', error)
   }
 
   return null
