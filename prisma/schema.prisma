@@ -59,6 +59,7 @@ model User {
   roadmaps                   Roadmap[]
   sessions                   Session[]
   userCustomizations         UserCustomization?
+  tutorialProgress           TutorialProgress?
 }
 
 model UserCustomization {
@@ -262,6 +263,31 @@ model CalendarSync {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   milestone       Milestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+}
+
+model TutorialProgress {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  currentStep       Int      @default(0)
+  completedSteps    Int[]    @default([])
+  isCompleted       Boolean  @default(false)
+  lastSeenAt        DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model TutorialStep {
+  id          String   @id @default(cuid())
+  stepNumber  Int      @unique
+  title       String
+  description String
+  targetPage  String?
+  targetElement String?
+  content     String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 enum RoadmapStatus {

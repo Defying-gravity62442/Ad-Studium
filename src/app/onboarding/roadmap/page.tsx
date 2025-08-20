@@ -423,14 +423,17 @@ export default function CreateRoadmapPage() {
           {/* Step 2: Sanity Check */}
           {step === 'sanity-check' && sanityCheck && (
             <div className="space-y-6">
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <h3 className="text-lg font-semibold text-yellow-800 mb-3">
-                  ⚠️ Goal Analysis Results
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-black mb-4">
+                  Let&apos;s make your roadmap more specific and tailored to you
                 </h3>
+                <p className="text-gray-700 mb-4 leading-relaxed">
+                  I&apos;d like to check a few things before proceeding, so that we can make your roadmap more specific, tailored to you, and more accurate.
+                </p>
                 {sanityCheck.missingInfo.length > 0 && (
-                  <div className="mb-3">
-                    <p className="text-sm font-medium text-yellow-700 mb-1">Missing Information:</p>
-                    <ul className="list-disc list-inside text-sm text-gray-700 ml-2">
+                  <div className="mb-4">
+                    <p className="text-sm font-medium text-gray-900 mb-2">Additional information that would help:</p>
+                    <ul className="list-disc list-inside text-sm text-gray-700 ml-2 space-y-1">
                       {sanityCheck.missingInfo.map((info, index) => (
                         <li key={index}>{info}</li>
                       ))}
@@ -438,9 +441,9 @@ export default function CreateRoadmapPage() {
                   </div>
                 )}
                 {sanityCheck.clarifications.length > 0 && (
-                  <div className="mb-3">
-                    <p className="text-sm font-medium text-yellow-700 mb-1">Clarifications Needed:</p>
-                    <ul className="list-disc list-inside text-sm text-gray-700 ml-2">
+                  <div className="mb-4">
+                    <p className="text-sm font-medium text-gray-900 mb-2">Just to clarify:</p>
+                    <ul className="list-disc list-inside text-sm text-gray-700 ml-2 space-y-1">
                       {sanityCheck.clarifications.map((clarification, index) => (
                         <li key={index}>{clarification}</li>
                       ))}

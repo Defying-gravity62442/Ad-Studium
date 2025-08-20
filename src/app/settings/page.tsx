@@ -5,6 +5,7 @@ import { useSession, signOut } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import { useE2EE } from '@/hooks/useE2EE'
 import { CalendarPermissionRequest } from '@/components/features/calendar/CalendarPermissionRequest'
+import { TutorialButton } from '@/components/tutorial'
 import { TIMEZONE_OPTIONS } from '@/lib/utils/timezone'
 
 const AI_PERSONALITIES = [
@@ -135,7 +136,7 @@ interface SummaryData {
 
 function SettingsContent() {
   const searchParams = useSearchParams()
-  const [activeTab, setActiveTab] = useState<'customization' | 'calendar' | 'export' | 'delete'>('customization')
+  const [activeTab, setActiveTab] = useState<'customization' | 'calendar' | 'help' | 'export' | 'delete'>('customization')
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
@@ -547,6 +548,16 @@ function SettingsContent() {
               Calendar Integration
             </button>
             <button
+              onClick={() => setActiveTab('help')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'help'
+                  ? 'border-black text-black'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Help & Tutorial
+            </button>
+            <button
               onClick={() => setActiveTab('export')}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'export'
@@ -779,6 +790,66 @@ function SettingsContent() {
                   </button>
                 )}
               </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'help' && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-bold text-black mb-4">Help & Tutorial</h2>
+              <p className="text-gray-600 mb-6">
+                Get help with using Ad Studium and take the interactive tutorial to learn about all features.
+              </p>
+            </div>
+            
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-black mb-4">Interactive Tutorial</h3>
+              <p className="text-gray-600 mb-4">
+                Take a guided tour of Ad Studium to learn about all the features available to support your PhD journey.
+              </p>
+              <TutorialButton variant="inline" className="mb-4" />
+            </div>
+
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-black mb-4">Getting Started</h3>
+              <div className="space-y-4 text-gray-600">
+                <div>
+                  <h4 className="font-medium text-black">📝 Journal</h4>
+                  <p>Capture your thoughts and see new insights unfold. Chat with your AI companion about your research day and discover patterns in your thinking.</p>
+                </div>
+                <div>
+                  <h4 className="font-medium text-black">🗺️ Roadmap</h4>
+                  <p>Transform big dreams into concrete steps. Create milestones with due dates and sync them to your Google Calendar to stay aligned.</p>
+                </div>
+                <div>
+                  <h4 className="font-medium text-black">📖 Reading</h4>
+                  <p>Upload academic papers and textbooks to engage deeply with the work that inspires you. Create reflections that turn knowledge into wisdom.</p>
+                </div>
+                <div>
+                  <h4 className="font-medium text-black">✉️ Letters</h4>
+                  <p>Speak to your future self with honesty and hope. Schedule messages for when you&apos;ll need them most on your journey.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-black mb-4">Privacy & Security</h3>
+              <div className="space-y-3 text-gray-600">
+                <p>• Your personal content is encrypted end-to-end - only you can access it</p>
+                <p>• AI processing happens securely with your data decrypted locally on your device</p>
+                <p>• No tracking, no ads, no selling of personal information</p>
+                <p>• Export or delete your data anytime (with a 7-day cooling-off period for journal entries)</p>
+                <p>• PDFs are converted to numerical embeddings that can&apos;t be reversed to original text (though they may reveal general topics)</p>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-black mb-4">Need More Help?</h3>
+              <p className="text-gray-600 mb-4">
+                If you have questions or need support, feel free to reach out to the developer at <a href="mailto:heming@uw.cs.washington.edu">heming@cs.washington.edu</a>
+              </p>
+
             </div>
           </div>
         )}

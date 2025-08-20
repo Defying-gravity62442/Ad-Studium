@@ -33,7 +33,7 @@ export function Header() {
             </Link>
             
             {/* Desktop Navigation */}
-            <nav className="nav-desktop">
+            <nav className="nav-desktop" data-tutorial="navigation">
               {navLinks.map((link) => (
                 <Link 
                   key={link.href}

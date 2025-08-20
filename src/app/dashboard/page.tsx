@@ -14,6 +14,8 @@ import ProofOfProgress from "@/components/ProofOfProgress"
 import MoodTracking from "@/components/MoodTracking"
 import { LetterUnsealNotification } from "@/components/LetterUnsealNotification"
 import { Calendar, Target, Heart, BookOpen, LayoutDashboard } from 'lucide-react'
+import { TutorialButton } from '@/components/tutorial'
+
 
 interface UserData {
   aiAssistantName?: string
@@ -345,11 +347,11 @@ export default function Dashboard() {
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             <div>
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center shadow-lg flex-shrink-0">
+                <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center shadow-lg flex-shrink-0" data-tutorial="dashboard-icon">
                   <LayoutDashboard className="h-8 w-8 text-gray-600" />
                 </div>
                 <div>
-                  <h1 className="heading-primary text-elegant">
+                  <h1 className="heading-primary text-elegant" data-tutorial="welcome-message">
                     {greeting}, {firstName}
                   </h1>
                   <p className="text-paper-secondary text-lg">
@@ -359,16 +361,19 @@ export default function Dashboard() {
               </div>
             </div>
             
+            <div className="flex items-center gap-4">
+              {/* Tutorial button removed to avoid duplication with floating button */}
+            </div>
 
           </div>
         </div>
 
         {/* Main Dashboard Grid */}
         <div className="paper-grid-2 mb-8">
-          <div className="paper-card paper-spacing-md paper-card-interactive">
+          <div className="paper-card paper-spacing-md paper-card-interactive" data-tutorial="upcoming-card">
             <UpcomingCard />
           </div>
-          <div className="paper-card paper-spacing-md paper-card-interactive">
+          <div className="paper-card paper-spacing-md paper-card-interactive" data-tutorial="progress-card">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center shadow-lg">
                 <Target className="h-5 w-5 text-gray-600" />
@@ -380,7 +385,7 @@ export default function Dashboard() {
         </div>
         
         <div className="paper-grid-2">
-          <div className="paper-card paper-spacing-md paper-card-interactive">
+          <div className="paper-card paper-spacing-md paper-card-interactive" data-tutorial="mood-card">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center shadow-lg">
                 <Heart className="h-5 w-5 text-gray-600" />
@@ -390,7 +395,7 @@ export default function Dashboard() {
             <MoodTracking />
           </div>
           
-          <div className="paper-card paper-spacing-md paper-card-interactive">
+          <div className="paper-card paper-spacing-md paper-card-interactive" data-tutorial="reading-card">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center shadow-lg">
                 <BookOpen className="h-5 w-5 text-gray-600" />
@@ -401,6 +406,9 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Floating Tutorial Button */}
+      <TutorialButton />
 
       {/* Letter Unseal Notification */}
       {showLetterNotification && (
