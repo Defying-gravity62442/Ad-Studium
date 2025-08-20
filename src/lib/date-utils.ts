@@ -135,19 +135,11 @@ export function getWeekRange(date: Date, userTimezone: string): { start: Date, e
   start.setDate(start.getDate() - start.getDay()) // Start of week (Sunday)
   start.setHours(0, 0, 0, 0)
   
-  const end = new Date(start)
-  end.setDate(end.getDate() + 6) // End of week (Saturday)
+  // Use safer date arithmetic to avoid invalid dates
+  const end = new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000) // End of week (Saturday)
   end.setHours(23, 59, 59, 999)
   
   return { start, end }
-}
-
-/**
- * Get the previous week's date for retrospective summary generation
- */
-export function getPreviousWeekDate(): Date {
-  const currentDate = new Date()
-  return new Date(currentDate.getTime() - 7 * 24 * 60 * 60 * 1000) // 7 days ago
 }
 
 export function getMonthRange(date: Date, userTimezone: string): { start: Date, end: Date } {
@@ -158,7 +150,8 @@ export function getMonthRange(date: Date, userTimezone: string): { start: Date, 
   
   // Create end date by going to the first day of next month, then subtracting 1 day
   const end = new Date(localDate.getFullYear(), localDate.getMonth() + 1, 1)
-  end.setDate(end.getDate() - 1) // Last day of current month
+  // Use safer date arithmetic to avoid invalid dates
+  end.setTime(end.getTime() - 24 * 60 * 60 * 1000) // Last day of current month
   end.setHours(3, 0, 0, 0)
   
   return { start, end }

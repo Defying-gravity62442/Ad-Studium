@@ -79,7 +79,7 @@ export default function CreateRoadmapPage() {
   // Edit state for display mode
   const [editingTitle, setEditingTitle] = useState(false)
   const [editingMilestone, setEditingMilestone] = useState<number | null>(null)
-  const [flippedMilestones, setFlippedMilestones] = useState<Set<number>>(new Set())
+  const [expandedMilestone, setExpandedMilestone] = useState<string | null>(null)
   
   const router = useRouter()
   const { data: session } = useSession()
@@ -301,7 +301,7 @@ export default function CreateRoadmapPage() {
     const newMilestone = {
       title: '',
       description: '',
-      dueDate: `${localDateString}T00:00:00.000Z`
+                dueDate: localDateString
     }
     setReviewMilestones(prev => [...prev, newMilestone])
   }
@@ -327,25 +327,31 @@ export default function CreateRoadmapPage() {
     setEditingMilestone(null)
   }
 
-  const toggleFlip = (index: number) => {
-    setFlippedMilestones(prev => {
-      const next = new Set(prev)
-      if (next.has(index)) next.delete(index)
-      else next.add(index)
-      return next
+  const toggleMilestoneExpansion = (milestoneId: string) => {
+    setExpandedMilestone(prev => prev === milestoneId ? null : milestoneId)
+  }
+
+  const formatDueDate = (dateString: string) => {
+    if (!dateString) return 'No due date'
+    // Parse YYYY-MM-DD format directly to avoid timezone issues
+    const [year, month, day] = dateString.split('T')[0].split('-')
+    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric'
     })
   }
 
-  const formatDate = (dateString: string) => {
-    if (!dateString) return 'No due date'
-    // Parse as local date to avoid timezone issues
-    const date = new Date(dateString.split('T')[0] + 'T00:00:00')
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric',
-      timeZone: 'UTC'
-    })
+  const isOverdue = (dueDate: string | undefined) => {
+    if (!dueDate) return false
+    const today = new Date().toISOString().split('T')[0]
+    return dueDate.split('T')[0] < today
+  }
+
+  const getMilestoneStatusClass = (index: number) => {
+    // All milestones are pending during creation
+    return 'pending'
   }
 
   if (!isReady) {
@@ -576,134 +582,183 @@ export default function CreateRoadmapPage() {
                   </button>
                 </div>
 
-                <div className="flip-card-grid">
-                  {reviewMilestones.map((milestone, index) => (
-                    <div key={index} className="flip-card" onClick={() => toggleFlip(index)}>
-                      <div className={`flip-card-inner creation-mode ${flippedMilestones.has(index) ? 'is-flipped' : ''}`}>
-                        {/* Front */}
-                        <div className="flip-card-face flip-card-front">
-                          <div className="flex items-start justify-between mb-2">
-                            <span className="text-sm font-medium text-gray-700 uppercase tracking-wide">Milestone #{index + 1}</span>
-                            <div className="flex space-x-2">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  removeReviewMilestone(index)
-                                }}
-                                className="text-red-500 hover:text-red-700 text-xs"
-                                title="Remove"
-                              >
-                                Delete
-                              </button>
-                            </div>
+                <div className="roadmap-timeline">
+                  {reviewMilestones.length === 0 ? (
+                    <div className="paper-empty py-12">
+                      <div className="paper-empty-icon">
+                        <svg className="h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                      </div>
+                      <div className="paper-empty-title text-elegant">No milestones yet</div>
+                      <div className="paper-empty-description text-elegant">Click &quot;Add Milestone&quot; to get started.</div>
+                    </div>
+                  ) : (
+                    reviewMilestones.map((milestone, index) => (
+                      <div key={index} className="timeline-item">
+                        {/* Timeline Connector */}
+                        <div className="timeline-connector">
+                          <div className={`timeline-dot ${getMilestoneStatusClass(index)}`}>
+                            <span className="text-xs font-medium text-gray-600">{index + 1}</span>
                           </div>
-                          <div className="flex-1 flip-card-scroll">
-                            <div className="text-lg font-medium text-black line-clamp-3">
-                              {milestone.title || 'Untitled milestone'}
-                            </div>
-                          </div>
-                          <div className="flip-card-footer">
-                            <div className="text-xs text-gray-600">
-                              <span className="font-medium">Due: </span>
-                              {formatDate(milestone.dueDate)}
-                            </div>
-                          </div>
+                          {index < reviewMilestones.length - 1 && (
+                            <div className="timeline-line pending" />
+                          )}
                         </div>
 
-                        {/* Back */}
-                        <div className="flip-card-face flip-card-back">
-                          <div className="flip-card-actions mb-2">
-                            <span className="text-sm font-medium text-gray-700 uppercase tracking-wide">Details</span>
-                          </div>
-
-                          {editingMilestone === index ? (
-                            <div className="space-y-3 flex-1 flip-card-scroll">
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
-                                <input
-                                  type="text"
-                                  value={milestone.title}
-                                  onChange={(e) => updateReviewMilestone(index, 'title', e.target.value)}
-                                  placeholder="e.g., Complete coursework"
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-black focus:border-transparent"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
-                                <textarea
-                                  value={milestone.description || ''}
-                                  onChange={(e) => updateReviewMilestone(index, 'description', e.target.value)}
-                                  placeholder="Additional details about this milestone..."
-                                  rows={3}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-black focus:border-transparent"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
-                                <input
-                                  type="date"
-                                  value={milestone.dueDate ? milestone.dueDate.split('T')[0] : ''}
-                                  onChange={(e) => updateReviewMilestone(index, 'dueDate', e.target.value ? `${e.target.value}T00:00:00.000Z` : '')}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-black focus:border-transparent"
-                                />
+                        {/* Timeline Content */}
+                        <div className="timeline-content">
+                          <div className="timeline-card">
+                            <div className="timeline-card-header">
+                              <div className="flex items-start space-x-3">
+                                <div className="flex-1 min-w-0">
+                                  {editingMilestone === index ? (
+                                    <div className="space-y-3">
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1 text-elegant">Title *</label>
+                                        <input
+                                          type="text"
+                                          value={milestone.title}
+                                          onChange={(e) => updateReviewMilestone(index, 'title', e.target.value)}
+                                          placeholder="e.g., Complete coursework"
+                                          className="form-input text-lg font-medium w-full"
+                                          autoFocus
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1 text-elegant">Description (Optional)</label>
+                                        <textarea
+                                          value={milestone.description || ''}
+                                          onChange={(e) => updateReviewMilestone(index, 'description', e.target.value)}
+                                          placeholder="Additional details about this milestone..."
+                                          rows={3}
+                                          className="form-textarea text-sm w-full"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1 text-elegant">Due Date</label>
+                                        <input
+                                          type="date"
+                                          value={milestone.dueDate ? milestone.dueDate.split('T')[0] : ''}
+                                          onChange={(e) => updateReviewMilestone(index, 'dueDate', e.target.value || '')}
+                                          className="form-input text-sm"
+                                        />
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div>
+                                      <h4 className="text-lg font-medium mb-1 text-elegant text-gray-900">
+                                        {milestone.title || 'Untitled milestone'}
+                                      </h4>
+                                      
+                                      {milestone.dueDate && (
+                                        <div className="flex items-center space-x-2 text-sm">
+                                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                          </svg>
+                                          <span className={`${
+                                            isOverdue(milestone.dueDate)
+                                              ? 'text-red-600 font-medium'
+                                              : 'text-gray-600'
+                                          }`}>
+                                            Due: {formatDueDate(milestone.dueDate)}
+                                          </span>
+                                          {isOverdue(milestone.dueDate) && (
+                                            <span className="paper-badge paper-badge-error text-xs">
+                                              Overdue
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          ) : (
-                            <div className="flex-1 flip-card-scroll">
-                              <div className="text-gray-700 whitespace-pre-wrap">
-                                {milestone.description || 'No detailed instructions provided.'}
-                              </div>
-                            </div>
-                          )}
 
-                          <div className="flex space-x-2 pt-2">
-                            {editingMilestone === index ? (
-                              <>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleSaveMilestone()
-                                  }}
-                                  className="px-3 py-1 bg-black text-white text-sm rounded hover:bg-gray-800 transition-colors"
-                                >
-                                  Save
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setReviewMilestones(prev => 
-                                      prev.map((m, i) => 
-                                        i === index ? aiRoadmap.milestones[index] || m : m
-                                      )
-                                    )
-                                    setEditingMilestone(null)
-                                  }}
-                                  className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300 transition-colors"
-                                >
-                                  Cancel
-                                </button>
-                              </>
-                            ) : (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  setEditingMilestone(index)
-                                }}
-                                className="px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded hover:bg-gray-200 transition-colors"
-                              >
-                                Edit
-                              </button>
+                            {/* Expandable Content */}
+                            {(editingMilestone === index || 
+                              (expandedMilestone === `${index}` && milestone.description)) && (
+                              <div className="timeline-card-content">
+                                {editingMilestone !== index && milestone.description && (
+                                  <p className="text-sm text-gray-600 whitespace-pre-wrap text-elegant">
+                                    {milestone.description}
+                                  </p>
+                                )}
+                              </div>
                             )}
+
+                            {/* Action Footer */}
+                            <div className="timeline-card-footer">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-4">
+                                  {milestone.description && expandedMilestone !== `${index}` && editingMilestone !== index && (
+                                    <button
+                                      onClick={() => toggleMilestoneExpansion(`${index}`)}
+                                      className="text-xs text-gray-500 hover:text-gray-700"
+                                    >
+                                      Show details
+                                    </button>
+                                  )}
+                                  
+                                  {expandedMilestone === `${index}` && editingMilestone !== index && milestone.description && (
+                                    <button
+                                      onClick={() => toggleMilestoneExpansion(`${index}`)}
+                                      className="text-xs text-gray-500 hover:text-gray-700"
+                                    >
+                                      Hide details
+                                    </button>
+                                  )}
+                                </div>
+                                
+                                <div className="flex items-center space-x-2">
+                                  {editingMilestone === index ? (
+                                    <>
+                                      <button
+                                        onClick={() => handleSaveMilestone()}
+                                        className="text-xs font-medium text-green-600 hover:text-green-800"
+                                      >
+                                        Save
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setReviewMilestones(prev => 
+                                            prev.map((m, i) => 
+                                              i === index ? aiRoadmap.milestones[index] || m : m
+                                            )
+                                          )
+                                          setEditingMilestone(null)
+                                        }}
+                                        className="text-xs font-medium text-gray-600 hover:text-gray-800"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <button
+                                        onClick={() => setEditingMilestone(index)}
+                                        className="text-xs text-gray-500 hover:text-gray-700"
+                                        title="Edit milestone"
+                                      >
+                                        Edit
+                                      </button>
+                                      <button
+                                        onClick={() => removeReviewMilestone(index)}
+                                        className="text-xs text-red-500 hover:text-red-700"
+                                        title="Delete milestone"
+                                      >
+                                        Delete
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-
-                  {reviewMilestones.length === 0 && (
-                    <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg border border-gray-200">
-                      No milestones yet. Click &quot;Add Milestone&quot; to get started.
-                    </div>
+                    ))
                   )}
                 </div>
               </div>

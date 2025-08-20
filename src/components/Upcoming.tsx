@@ -58,7 +58,9 @@ export default function Upcoming() {
   }
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
+    // Parse YYYY-MM-DD format directly to avoid timezone issues
+    const [year, month, day] = dateString.split('T')[0].split('-')
+    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
     const now = new Date()
     const diffInDays = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
     
@@ -75,7 +77,9 @@ export default function Upcoming() {
   }
 
   const getUrgencyText = (dateString: string) => {
-    const date = new Date(dateString)
+    // Parse YYYY-MM-DD format directly to avoid timezone issues
+    const [year, month, day] = dateString.split('T')[0].split('-')
+    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
     const now = new Date()
     const diffInDays = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
     
@@ -85,7 +89,9 @@ export default function Upcoming() {
   }
 
   const isUrgent = (dateString: string) => {
-    const date = new Date(dateString)
+    // Parse YYYY-MM-DD format directly to avoid timezone issues
+    const [year, month, day] = dateString.split('T')[0].split('-')
+    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
     const now = new Date()
     const diffInDays = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
     return diffInDays <= 1

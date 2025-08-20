@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useE2EE } from '@/hooks/useE2EE'
 import { Modal } from '@/components/ui/modal'
 import { ErrorModal } from '@/components/ui/error-modal'
@@ -8,6 +8,8 @@ import { extractTextFromPDF } from '@/lib/pdf-parser'
 import { calculateUniquePages } from '@/lib/utils/reading-progress'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
 import { EncryptedData } from '@/lib/client-encryption'
 import { BookOpen, Upload, FileText, Brain, Plus, Calendar, Clock, Eye, CheckCircle, Loader2, Sparkles, X, Trash2, Lock, AlertTriangle } from 'lucide-react'
 
@@ -47,6 +49,7 @@ interface DecryptedReadingLog extends ReadingLog {
 }
 
 export default function ReadingReflectionPage() {
+  const MAX_SELECTION = 8
   const [isLoading, setIsLoading] = useState(true)
   const [readings, setReadings] = useState<DecryptedReading[]>([])
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -63,6 +66,21 @@ export default function ReadingReflectionPage() {
   const [selectedReadingLogsForReflection, setSelectedReadingLogsForReflection] = useState<string[]>([])
   const [isGeneratingReflection, setIsGeneratingReflection] = useState(false)
   const [lastReflection, setLastReflection] = useState<string | null>(null)
+  const [socraticQuestions, setSocraticQuestions] = useState<string[]>([])
+  const [task2Questions, setTask2Questions] = useState<string[]>([])
+  const [lastReflectionId, setLastReflectionId] = useState<string | null>(null)
+  type ReflectionUserAnswers = { socratic: string[]; task2: string[] }
+  interface ReflectionStructuredData {
+    socraticQuestions?: string[]
+    extensionQuestions?: string[]
+    userAnswers?: ReflectionUserAnswers
+    [key: string]: any
+  }
+  const [, setStructuredData] = useState<ReflectionStructuredData | null>(null)
+  const [showAnswerForIndex, setShowAnswerForIndex] = useState<Record<string, boolean>>({})
+  const [answersByIndex, setAnswersByIndex] = useState<Record<string, string>>({})
+  const [saveStatusByIndex, setSaveStatusByIndex] = useState<Record<string, 'idle' | 'saving' | 'saved' | 'error'>>({})
+  const [analysisType, setAnalysisType] = useState<'cross-contextual' | 'temporal-progression' | 'beyond-the-reading' | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'completed'>('all')
   const [showUploadModal, setShowUploadModal] = useState(false)
@@ -82,6 +100,7 @@ export default function ReadingReflectionPage() {
       console.warn('No encryption key available')
       setIsLoading(false)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isReady, hasKey])
 
   const loadUserCustomization = async () => {
@@ -94,15 +113,15 @@ export default function ReadingReflectionPage() {
             // Parse and decrypt the aiAssistantName
             const decryptedName = await decryptSafely(JSON.parse(data.customization.aiAssistantName))
             setUserAssistantName(decryptedName || 'Claude')
-          } catch (decryptError) {
-            console.error('Failed to decrypt aiAssistantName:', decryptError)
+          } catch {
+            console.error('Failed to decrypt aiAssistantName')
             // Fallback to default name
             setUserAssistantName('Claude')
           }
         }
       }
-    } catch (error) {
-      console.error('Failed to load user customization:', error)
+    } catch {
+      console.error('Failed to load user customization')
     }
   }
 
@@ -130,7 +149,7 @@ export default function ReadingReflectionPage() {
           if (reading.title) {
             try {
               decryptedTitle = await decryptSafely(reading.title) || 'Encrypted Document'
-            } catch (error) {
+            } catch {
               console.warn('Failed to decrypt title for reading:', reading.id)
               decryptedTitle = 'Encrypted Document'
             }
@@ -150,8 +169,8 @@ export default function ReadingReflectionPage() {
                         decryptedLog.decryptedStartPage = pageNum
                       }
                     }
-                  } catch (error) {
-                    console.warn('Failed to decrypt start page for log:', log.id, error)
+                  } catch {
+                    console.warn('Failed to decrypt start page for log:', log.id)
                   }
                 }
                 if (log.endPage) {
@@ -163,29 +182,27 @@ export default function ReadingReflectionPage() {
                         decryptedLog.decryptedEndPage = pageNum
                       }
                     }
-                  } catch (error) {
-                    console.warn('Failed to decrypt end page for log:', log.id, error)
+                  } catch {
+                    console.warn('Failed to decrypt end page for log:', log.id)
                   }
                 }
                 if (log.notes) {
                   try {
                     const decryptedNotes = await decryptSafely(log.notes)
                     decryptedLog.decryptedNotes = decryptedNotes || undefined
-                  } catch (error) {
-                    console.warn('Failed to decrypt notes for log:', log.id, error)
+                  } catch {
+                    console.warn('Failed to decrypt notes for log:', log.id)
                   }
                 }
                 if (log.sessionDate) {
                   try {
                     const decryptedSessionDate = await decryptSafely(log.sessionDate)
                     decryptedLog.decryptedSessionDate = decryptedSessionDate || undefined
-                  } catch (error) {
-                    console.warn('Failed to decrypt session date for log:', log.id, error)
+                  } catch {
+                    console.warn('Failed to decrypt session date for log:', log.id)
                   }
                 }
-              } catch (error) {
-                console.warn('Failed to decrypt reading log data for log:', log.id, error)
-              }
+              } catch {}
               
               return decryptedLog
             })
@@ -402,10 +419,34 @@ export default function ReadingReflectionPage() {
 
       const data = await response.json()
       setLastReflection(data.reflection.content)
+      setLastReflectionId(data.reflection.id)
+      let dataToPersist: any = data.reflection.structuredData || {}
+      setAnalysisType(data.reflection?.metadata?.analysisType || null)
+      try {
+        const parsed = parseQuestionsFromMarkdown(data.reflection.content || '')
+        setSocraticQuestions(parsed.socratic)
+        setTask2Questions(parsed.task2)
+        const combined = {
+          ...(data.reflection.structuredData || {}),
+          socraticQuestions: parsed.socratic,
+          extensionQuestions: parsed.task2,
+          userAnswers: {
+            socratic: [],
+            task2: []
+          }
+        }
+        setStructuredData(combined)
+        dataToPersist = combined
+      } catch (parseErr) {
+        console.warn('Failed to parse questions from reflection content:', parseErr)
+        setSocraticQuestions([])
+        setTask2Questions([])
+      }
       
-      if (data.reflection.structuredData && hasKey) {
+      if (hasKey) {
         try {
-          const encryptedReflectionData = await encrypt(JSON.stringify(data.reflection.structuredData))
+          // Persist the combined structured data with parsed questions
+          const encryptedReflectionData = await encrypt(JSON.stringify(dataToPersist))
           
           await fetch(`/api/reading/reflect/${data.reflection.id}`, {
             method: 'PATCH',
@@ -429,13 +470,160 @@ export default function ReadingReflectionPage() {
     }
   }
 
-  const handleReadingLogSelectionToggle = (logId: string) => {
-    setSelectedReadingLogsForReflection(prev => 
-      prev.includes(logId) 
-        ? prev.filter(id => id !== logId)
-        : [...prev, logId]
-    )
+  const persistStructuredData = async (dataToPersist: any): Promise<boolean> => {
+    if (!hasKey || !lastReflectionId) return false
+    try {
+      const encryptedReflectionData = await encrypt(JSON.stringify(dataToPersist))
+      const res = await fetch(`/api/reading/reflect/${lastReflectionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ encryptedReflectionData })
+      })
+      return res.ok
+    } catch (err) {
+      console.error('Failed to persist answers:', err)
+      return false
+    }
   }
+
+  const handleSaveFlashcard = async (kind: 'socratic' | 'task2', idx: number) => {
+    const mapKey = `${kind}-${idx}`
+    setSaveStatusByIndex(prev => ({ ...prev, [mapKey]: 'saving' }))
+    let nextState: any
+    setStructuredData(prev => {
+      const next = {
+        ...(prev || {}),
+        userAnswers: {
+          socratic: prev?.userAnswers?.socratic ? [...prev.userAnswers.socratic] : [],
+          task2: prev?.userAnswers?.task2 ? [...prev.userAnswers.task2] : []
+        }
+      }
+      const key = kind === 'socratic' ? 'socratic' : 'task2'
+      const value = answersByIndex[mapKey] || ''
+      const arr: string[] = next.userAnswers[key]
+      for (let i = arr.length; i <= idx; i++) arr[i] = ''
+      arr[idx] = value
+      nextState = next
+      return next
+    })
+    const ok = await persistStructuredData(nextState)
+    setSaveStatusByIndex(prev => ({ ...prev, [mapKey]: ok ? 'saved' : 'error' }))
+    if (ok) {
+      setTimeout(() => {
+        setSaveStatusByIndex(prev => ({ ...prev, [mapKey]: 'idle' }))
+      }, 1500)
+    }
+  }
+
+  const parseQuestionsFromMarkdown = (markdown: string): { socratic: string[], task2: string[] } => {
+    if (!markdown) return { socratic: [], task2: [] }
+    const lines = markdown.split('\n')
+    let inSocraticSection = false
+    let inTask2Section = false
+    const socraticQuestions: string[] = []
+    const task2Questions: string[] = []
+    
+    for (let i = 0; i < lines.length; i++) {
+      const raw = lines[i]
+      const line = raw.trim()
+      
+      // Check for section headers
+      if (/socratic\s+questions/i.test(line)) {
+        inSocraticSection = true
+        inTask2Section = false
+        continue
+      }
+      
+      if (/^(?:\*\*|__)\s*Task\s*2/i.test(line) || /(Cross-Context|Temporal|Beyond the Reading)/i.test(line)) {
+        inSocraticSection = false
+        inTask2Section = true
+        continue
+      }
+      
+      // Exit sections on new headers
+      if (/^\s*#+\s+/.test(line)) {
+        inSocraticSection = false
+        inTask2Section = false
+        continue
+      }
+      
+      // Collect questions
+      const match = line.match(/^[-*]|^\d+\./)
+      if (match) {
+        const text = line.replace(/^\s*(?:[-*]|\d+\.)\s+/, '').trim()
+        if (text) {
+          if (inSocraticSection && socraticQuestions.length < 3) {
+            socraticQuestions.push(text)
+          } else if (inTask2Section && task2Questions.length < 3) {
+            task2Questions.push(text)
+          }
+        }
+      }
+    }
+    
+    return {
+      socratic: socraticQuestions,
+      task2: task2Questions
+    }
+  }
+
+  const handleReadingLogSelectionToggle = (logId: string) => {
+    setSelectedReadingLogsForReflection(prev => {
+      if (prev.includes(logId)) return prev.filter(id => id !== logId)
+      if (prev.length >= MAX_SELECTION) {
+        setErrorModal({ isOpen: true, title: 'Selection Limit', message: `You can select up to ${MAX_SELECTION} sessions for a single reflection.` })
+        return prev
+      }
+      return [...prev, logId]
+    })
+  }
+
+  const handleQuickSelectRecent = (count: number) => {
+    const allValidLogs = readings.flatMap(reading =>
+      reading.readingLogs
+        .filter(log => log.decryptedStartPage && log.decryptedEndPage && log.decryptedSessionDate)
+        .map(log => ({ id: log.id, date: new Date(log.decryptedSessionDate! + 'T00:00:00').getTime() }))
+    )
+    const sorted = allValidLogs.sort((a, b) => b.date - a.date)
+    const target = sorted.slice(0, Math.min(count, MAX_SELECTION)).map(l => l.id)
+    setSelectedReadingLogsForReflection(target)
+  }
+
+  const handleSelectAllForReading = (readingId: string) => {
+    const reading = readings.find(r => r.id === readingId)
+    if (!reading) return
+    const validLogs = reading.readingLogs.filter(log => log.decryptedStartPage && log.decryptedEndPage && log.decryptedSessionDate)
+    setSelectedReadingLogsForReflection(prev => {
+      const remaining = MAX_SELECTION - prev.length
+      if (remaining <= 0) return prev
+      const candidates = validLogs.map(l => l.id).filter(id => !prev.includes(id))
+      return [...prev, ...candidates.slice(0, remaining)]
+    })
+  }
+
+  const handleClearForReading = (readingId: string) => {
+    const reading = readings.find(r => r.id === readingId)
+    if (!reading) return
+    const idsToClear = new Set(
+      reading.readingLogs
+        .filter(log => log.decryptedStartPage && log.decryptedEndPage && log.decryptedSessionDate)
+        .map(l => l.id)
+    )
+    setSelectedReadingLogsForReflection(prev => prev.filter(id => !idsToClear.has(id)))
+  }
+
+  const selectedLogDetails = useMemo(() => {
+    const details: { id: string; title: string; range: string }[] = []
+    for (const reading of readings) {
+      for (const log of reading.readingLogs) {
+        if (selectedReadingLogsForReflection.includes(log.id)) {
+          const range = (log.decryptedStartPage && log.decryptedEndPage) ? `p${log.decryptedStartPage}-${log.decryptedEndPage}` : ''
+          details.push({ id: log.id, title: reading.decryptedTitle, range })
+        }
+      }
+    }
+    return details
+  }, [readings, selectedReadingLogsForReflection])
 
   const handleDeleteReading = async (readingId: string, readingTitle: string) => {
     if (!confirm(`Are you sure you want to delete "${readingTitle}"? This will permanently remove the document, all reading logs, reflections, and associated data. This action cannot be undone.`)) {
@@ -909,18 +1097,30 @@ export default function ReadingReflectionPage() {
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">
                       Select Sessions
                     </h3>
-                    
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex gap-2">
+                        <button onClick={() => handleQuickSelectRecent(3)} className="btn-secondary btn-small text-xs">Last 3</button>
+                        <button onClick={() => handleQuickSelectRecent(5)} className="btn-secondary btn-small text-xs">Last 5</button>
+                      </div>
+                      <div className="text-xs text-gray-500">Up to {MAX_SELECTION} sessions</div>
+                    </div>
                     <div className="space-y-3 max-h-96 overflow-y-auto">
                       {readings.map((reading) => {
-                        const validLogs = reading.readingLogs.filter(log => 
-                          log.decryptedStartPage && log.decryptedEndPage && log.decryptedSessionDate
-                        )
+                        const validLogs = reading.readingLogs
+                          .filter(log => log.decryptedStartPage && log.decryptedEndPage && log.decryptedSessionDate)
+                          .sort((a, b) => new Date(b.decryptedSessionDate! + 'T00:00:00').getTime() - new Date(a.decryptedSessionDate! + 'T00:00:00').getTime())
                         
                         if (validLogs.length === 0) return null
                         
                         return (
                           <div key={reading.id} className="space-y-2">
-                            <h4 className="font-medium text-gray-900 text-sm">{reading.decryptedTitle}</h4>
+                            <div className="flex items-start justify-between">
+                              <h4 className="font-medium text-gray-900 text-sm break-words flex-1 pr-2">{reading.decryptedTitle}</h4>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <button onClick={() => handleSelectAllForReading(reading.id)} className="text-xs text-gray-600 hover:text-gray-800 underline underline-offset-2">Select all</button>
+                              <button onClick={() => handleClearForReading(reading.id)} className="text-xs text-gray-600 hover:text-gray-800 underline underline-offset-2">Clear</button>
+                            </div>
                             <div className="space-y-1">
                               {validLogs.map((log) => {
                                 return (
@@ -933,6 +1133,7 @@ export default function ReadingReflectionPage() {
                                       id={`log-${log.id}`}
                                       checked={selectedReadingLogsForReflection.includes(log.id)}
                                       onChange={() => handleReadingLogSelectionToggle(log.id)}
+                                      disabled={!selectedReadingLogsForReflection.includes(log.id) && selectedReadingLogsForReflection.length >= MAX_SELECTION}
                                       className="h-3 w-3 text-black border-gray-300 rounded focus:ring-black"
                                     />
                                     <label
@@ -964,7 +1165,26 @@ export default function ReadingReflectionPage() {
                             {selectedReadingLogsForReflection.length} session{selectedReadingLogsForReflection.length === 1 ? '' : 's'} selected
                           </span>
                         </div>
-                        
+                        {selectedLogDetails.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mb-3">
+                            {selectedLogDetails.slice(0, 6).map(item => (
+                              <span key={item.id} className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-700 rounded-full px-2 py-1">
+                                <span className="max-w-[120px] truncate">{item.title}</span>
+                                <span className="text-gray-500">{item.range}</span>
+                                <button onClick={() => handleReadingLogSelectionToggle(item.id)} className="text-gray-500 hover:text-gray-700">
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </span>
+                            ))}
+                            {selectedLogDetails.length > 6 && (
+                              <span className="text-xs text-gray-500">+{selectedLogDetails.length - 6} more</span>
+                            )}
+                          </div>
+                        )}
+                        {selectedReadingLogsForReflection.length >= MAX_SELECTION && (
+                          <div className="text-xs text-red-600 mb-2">Maximum of {MAX_SELECTION} sessions reached.</div>
+                        )}
+
                         <div className="space-y-2">
                           <button
                             onClick={handleGenerateReflection}
@@ -999,7 +1219,7 @@ export default function ReadingReflectionPage() {
                 <div className="lg:col-span-2">
                   {lastReflection ? (
                     <div className="paper-card paper-spacing-lg">
-                      <div className="flex items-center gap-3 mb-6">
+                      <div className="flex items-center gap-3 mb-6 justify-between">
                         <div className="p-2 bg-gray-100 rounded-lg">
                           <Sparkles className="h-5 w-5 text-gray-700" />
                         </div>
@@ -1011,29 +1231,155 @@ export default function ReadingReflectionPage() {
                             Personalized insights from your reading sessions
                           </p>
                         </div>
+                        {analysisType && (
+                          <span className="text-xs px-2 py-1 bg-gray-100 rounded-md capitalize text-gray-700">{analysisType.replace(/-/g, ' ')}</span>
+                        )}
                       </div>
+                      {(socraticQuestions.length > 0 || task2Questions.length > 0) && (
+                        <div className="mb-8 space-y-6">
+                          {socraticQuestions.length > 0 && (
+                            <div>
+                              <h4 className="text-lg font-semibold text-gray-900 mb-3">Socratic Questions</h4>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {socraticQuestions.map((q, idx) => {
+                                  const isBack = !!showAnswerForIndex[`socratic-${idx}`]
+                                  const answer = answersByIndex[`socratic-${idx}`] || ''
+                                  return (
+                                    <div key={`socratic-${idx}`} className="paper-card paper-spacing-md bg-white">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <div className="text-sm font-medium text-gray-700">Question {idx + 1}</div>
+                                        <button
+                                          onClick={() => setShowAnswerForIndex(prev => ({ ...prev, [`socratic-${idx}`]: !prev[`socratic-${idx}`] }))}
+                                          className="btn-secondary btn-small text-xs"
+                                        >
+                                          {isBack ? 'Show Question' : 'Answer'}
+                                        </button>
+                                      </div>
+                                      {!isBack ? (
+                                        <div className="prose prose-gray max-w-none text-gray-800 min-h-[4rem]">
+                                          <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                                            {q}
+                                          </ReactMarkdown>
+                                        </div>
+                                      ) : (
+                                        <div>
+                                          <label className="paper-label">Your Answer (Markdown + LaTeX supported)</label>
+                                          <textarea
+                                            value={answer}
+                                            onChange={(e) => setAnswersByIndex(prev => ({ ...prev, [`socratic-${idx}`]: e.target.value }))}
+                                            className="paper-textarea h-32 w-full"
+                                            placeholder="Write your answer here. Use $...$ or $$...$$ for LaTeX."
+                                          />
+                                          <div className="mt-2 flex justify-end">
+                                            <button
+                                              onClick={() => handleSaveFlashcard('socratic', idx)}
+                                              className="btn-primary btn-small"
+                                            >
+                                              Save
+                                            </button>
+                                          </div>
+                                          <div className="mt-1 text-right text-xs">
+                                            {saveStatusByIndex[`socratic-${idx}`] === 'saving' && <span className="text-gray-500">Saving...</span>}
+                                            {saveStatusByIndex[`socratic-${idx}`] === 'saved' && <span className="text-green-600">Saved</span>}
+                                            {saveStatusByIndex[`socratic-${idx}`] === 'error' && <span className="text-red-600">Save failed</span>}
+                                          </div>
+                                          {answer.trim() && (
+                                            <div className="mt-3">
+                                              <div className="text-xs text-gray-600 mb-1">Preview</div>
+                                              <div className="prose prose-gray max-w-none bg-gray-50 rounded-lg p-3">
+                                                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                                                  {answer}
+                                                </ReactMarkdown>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {task2Questions.length > 0 && (
+                            <div>
+                              <h4 className="text-lg font-semibold text-gray-900 mb-3">
+                                {analysisType === 'cross-contextual' && 'Cross-Context Inspiration'}
+                                {analysisType === 'temporal-progression' && 'Temporal Progression'}
+                                {analysisType === 'beyond-the-reading' && 'Beyond the Reading'}
+                                {!analysisType && 'Extension Questions'}
+                              </h4>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {task2Questions.map((q, idx) => {
+                                  const isBack = !!showAnswerForIndex[`task2-${idx}`]
+                                  const answer = answersByIndex[`task2-${idx}`] || ''
+                                  return (
+                                    <div key={`task2-${idx}`} className="paper-card paper-spacing-md bg-white">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <div className="text-sm font-medium text-gray-700">Question {idx + 1}</div>
+                                        <button
+                                          onClick={() => setShowAnswerForIndex(prev => ({ ...prev, [`task2-${idx}`]: !prev[`task2-${idx}`] }))}
+                                          className="btn-secondary btn-small text-xs"
+                                        >
+                                          {isBack ? 'Show Question' : 'Notes'}
+                                        </button>
+                                      </div>
+                                      {!isBack ? (
+                                        <div className="prose prose-gray max-w-none text-gray-800 min-h-[4rem]">
+                                          <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                                            {q}
+                                          </ReactMarkdown>
+                                        </div>
+                                      ) : (
+                                        <div>
+                                          <label className="paper-label">Your Notes (Markdown + LaTeX supported)</label>
+                                          <textarea
+                                            value={answer}
+                                            onChange={(e) => setAnswersByIndex(prev => ({ ...prev, [`task2-${idx}`]: e.target.value }))}
+                                            className="paper-textarea h-32 w-full"
+                                            placeholder="Write your thoughts here. Use $...$ or $$...$$ for LaTeX."
+                                          />
+                                          <div className="mt-2 flex justify-end">
+                                            <button
+                                              onClick={() => handleSaveFlashcard('task2', idx)}
+                                              className="btn-primary btn-small"
+                                            >
+                                              Save
+                                            </button>
+                                          </div>
+                                          <div className="mt-1 text-right text-xs">
+                                            {saveStatusByIndex[`task2-${idx}`] === 'saving' && <span className="text-gray-500">Saving...</span>}
+                                            {saveStatusByIndex[`task2-${idx}`] === 'saved' && <span className="text-green-600">Saved</span>}
+                                            {saveStatusByIndex[`task2-${idx}`] === 'error' && <span className="text-red-600">Save failed</span>}
+                                          </div>
+                                          {answer.trim() && (
+                                            <div className="mt-3">
+                                              <div className="text-xs text-gray-600 mb-1">Preview</div>
+                                              <div className="prose prose-gray max-w-none bg-gray-50 rounded-lg p-3">
+                                                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                                                  {answer}
+                                                </ReactMarkdown>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {/* Full reflection display removed to keep flashcard-only UI */}
                       
-                      <div className="prose prose-gray max-w-none text-gray-800 bg-gray-50 rounded-lg p-6">
-                        <ReactMarkdown 
-                          remarkPlugins={[remarkGfm]}
-                          components={{
-                            h1: ({ children }) => <h1 className="text-xl font-bold mb-3 text-gray-900 font-serif">{children}</h1>,
-                            h2: ({ children }) => <h2 className="text-lg font-semibold mb-2 text-gray-900 font-serif">{children}</h2>,
-                            h3: ({ children }) => <h3 className="text-base font-medium mb-2 text-gray-900 font-serif">{children}</h3>,
-                            p: ({ children }) => <p className="mb-3 text-gray-700 leading-relaxed font-serif">{children}</p>,
-                            ul: ({ children }) => <ul className="mb-3 ml-6 list-disc text-gray-700">{children}</ul>,
-                            ol: ({ children }) => <ol className="mb-3 ml-6 list-decimal text-gray-700">{children}</ol>,
-                            li: ({ children }) => <li className="mb-1 font-serif">{children}</li>,
-                            blockquote: ({ children }) => <blockquote className="border-l-4 border-gray-300 pl-4 mb-3 italic text-gray-600 font-serif">{children}</blockquote>,
-                            code: ({ children }) => <code className="bg-gray-100 px-1 py-0.5 rounded text-sm font-mono">{children}</code>,
-                            pre: ({ children }) => <pre className="bg-gray-100 p-3 rounded mb-3 overflow-x-auto font-mono text-sm">{children}</pre>,
-                            strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
-                            em: ({ children }) => <em className="italic text-gray-800">{children}</em>
-                          }}
-                        >
-                          {lastReflection}
-                        </ReactMarkdown>
-                      </div>
+                      {(socraticQuestions.length === 0 && task2Questions.length === 0) && lastReflection && (
+                        <div className="bg-gray-50 rounded-lg p-6 text-center text-gray-600">
+                          No structured questions were generated for this reflection.
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="paper-card paper-spacing-lg bg-gray-50 border-2 border-dashed border-gray-300">

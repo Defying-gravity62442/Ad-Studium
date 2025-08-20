@@ -17,13 +17,23 @@ interface WeeklySummaryResult {
   summaryId?: string
 }
 
+// Interface for existing weekly summaries (from GET endpoint)
 interface WeeklySummary {
   id: string
-  weekStartDate: string
-  weekEndDate: string
+  startDate: string  // GET endpoint returns 'startDate'
+  endDate: string    // GET endpoint returns 'endDate'
   content: string
   generatedProof?: string
   createdAt: string
+}
+
+// Interface for newly generated weekly summaries (from POST endpoint)
+interface GeneratedWeeklySummary {
+  content: string
+  weekStartDate: string  // POST endpoint returns 'weekStartDate'
+  weekEndDate: string    // POST endpoint returns 'weekEndDate'
+  dailySummaryIds: string[]
+  encouragingProof: string
 }
 
 /**
@@ -70,7 +80,21 @@ export async function generateWeeklySummariesForPastWeeks(
     
     allDailySummaries.forEach((summary: DailySummary) => {
       const summaryDate = new Date(summary.journal.date)
+      
+      // Validate that the summary date is valid
+      if (isNaN(summaryDate.getTime())) {
+        console.error('Invalid summary date:', summary.journal.date)
+        return // Skip this summary
+      }
+      
       const { start: weekStart } = getWeekRange(summaryDate, userTimezone)
+      
+      // Validate that the week start date is valid
+      if (isNaN(weekStart.getTime())) {
+        console.error('Invalid week start date from getWeekRange for summary date:', summary.journal.date)
+        return // Skip this summary
+      }
+      
       const weekKey = weekStart.toISOString().split('T')[0] // Use start date as key
       
       if (!weeklyGroups.has(weekKey)) {
@@ -157,6 +181,9 @@ export async function generateWeeklySummariesForPastWeeks(
         return { success: true, count: 0 }
       }
 
+      // Type the result.summary as GeneratedWeeklySummary
+      const generatedSummary = result.summary as GeneratedWeeklySummary
+
       // Save the generated summary
       const saveResponse = await fetch('/api/journal/hierarchical-summary/save', {
         method: 'POST',
@@ -165,11 +192,11 @@ export async function generateWeeklySummariesForPastWeeks(
         },
         body: JSON.stringify({
           type: 'weekly',
-          content: await encrypt(result.summary.content),
-          startDate: result.summary.weekStartDate,
-          endDate: result.summary.weekEndDate,
-          relatedIds: result.summary.dailySummaryIds || [],
-          generatedProof: result.summary.encouragingProof ? await encrypt(result.summary.encouragingProof) : null
+          content: await encrypt(generatedSummary.content),
+          startDate: generatedSummary.weekStartDate,
+          endDate: generatedSummary.weekEndDate,
+          relatedIds: generatedSummary.dailySummaryIds || [],
+          generatedProof: generatedSummary.encouragingProof ? await encrypt(generatedSummary.encouragingProof) : null
         })
       })
 
@@ -232,7 +259,7 @@ function findNextWeeklyGap(
   
   // Sort existing weekly summaries by week start date (oldest first)
   const sortedWeeklySummaries = existingWeeklySummaries
-    .sort((a, b) => new Date(a.weekStartDate).getTime() - new Date(b.weekStartDate).getTime())
+    .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
 
   // Sort weekly groups by week start date (oldest first)
   const sortedWeekKeys = Array.from(weeklyGroups.keys()).sort()
@@ -245,6 +272,13 @@ function findNextWeeklyGap(
     
     const earliestWeekKey = sortedWeekKeys[0]
     const weekStart = new Date(earliestWeekKey)
+    
+    // Validate that the date is valid before proceeding
+    if (isNaN(weekStart.getTime())) {
+      console.error('Invalid weekStart date from earliestWeekKey:', earliestWeekKey)
+      return null
+    }
+    
     const { end: weekEnd } = getWeekRange(weekStart, userTimezone)
     
     // Check if we should generate a summary for this week (not too recent)
@@ -264,11 +298,23 @@ function findNextWeeklyGap(
 
   // Find the next gap after the latest weekly summary
   const latestWeeklySummary = sortedWeeklySummaries[sortedWeeklySummaries.length - 1]
-  const latestWeekStart = new Date(latestWeeklySummary.weekStartDate)
+  const latestWeekStart = new Date(latestWeeklySummary.startDate)
+  
+  // Validate that the date is valid before proceeding
+  if (isNaN(latestWeekStart.getTime())) {
+    console.error('Invalid latestWeekStart date:', latestWeeklySummary.startDate)
+    return null
+  }
   
   // Find the next week after the latest weekly summary
-  const nextWeekStart = new Date(latestWeekStart)
-  nextWeekStart.setDate(nextWeekStart.getDate() + 7)
+  // Use a safer approach to add 7 days to avoid invalid dates
+  const nextWeekStart = new Date(latestWeekStart.getTime() + 7 * 24 * 60 * 60 * 1000)
+  
+  // Validate that the next week start is also valid
+  if (isNaN(nextWeekStart.getTime())) {
+    console.error('Invalid nextWeekStart date after adding 7 days')
+    return null
+  }
   
   const nextWeekKey = nextWeekStart.toISOString().split('T')[0]
   

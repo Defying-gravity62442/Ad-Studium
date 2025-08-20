@@ -250,7 +250,18 @@ export default function Dashboard() {
 
   const UpcomingCard = () => {
     const formatDate = (dateString: string) => {
-      const date = new Date(dateString)
+      let date: Date
+      
+      // Handle both YYYY-MM-DD format (milestones) and ISO DateTime format (letters)
+      if (dateString.includes('T')) {
+        // ISO DateTime format (letters)
+        date = new Date(dateString)
+      } else {
+        // YYYY-MM-DD format (milestones) - parse directly to avoid timezone issues
+        const [year, month, day] = dateString.split('-')
+        date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+      }
+      
       const now = new Date()
       const diffInDays = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
       
@@ -274,14 +285,8 @@ export default function Dashboard() {
       }
     }
 
-    const getUrgencyColor = (dateString: string) => {
-      const date = new Date(dateString)
-      const now = new Date()
-      const diffInDays = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-      
-      if (diffInDays <= 1) return 'border-l-red-400 bg-red-50'
-      if (diffInDays <= 3) return 'border-l-orange-400 bg-orange-50'
-      if (diffInDays <= 7) return 'border-l-yellow-400 bg-yellow-50'
+    const getUrgencyColor = () => {
+      // Use consistent black and white styling for all items
       return 'border-l-gray-400 bg-gray-50'
     }
 
@@ -315,7 +320,7 @@ export default function Dashboard() {
         </div>
         <div className="paper-list">
           {upcomingItems.map((item) => (
-            <div key={item.id} className={`paper-list-item border-l-4 ${getUrgencyColor(item.date)} transition-all duration-200 hover:shadow-sm hover:scale-[1.02]`}>
+            <div key={item.id} className={`paper-list-item border-l-4 ${getUrgencyColor()} transition-all duration-200 hover:shadow-sm hover:scale-[1.02]`}>
               <div className="flex items-start gap-4">
                 <div className="text-2xl text-paper">{getTypeIcon(item.type)}</div>
                 <div className="flex-1 min-w-0">

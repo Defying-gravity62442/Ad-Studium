@@ -47,18 +47,3 @@ export function detectUserTimezone(): string {
     return 'UTC'
   }
 }
-
-/**
- * Get a user-friendly label for a timezone value
- */
-export function getTimezoneLabel(timezoneValue: string): string {
-  const option = TIMEZONE_OPTIONS.find(option => option.value === timezoneValue)
-  return option ? option.label : timezoneValue
-}
-
-/**
- * Check if a timezone is supported in our application
- */
-export function isSupportedTimezone(timezone: string): boolean {
-  return TIMEZONE_OPTIONS.some(option => option.value === timezone)
-}

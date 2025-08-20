@@ -185,8 +185,11 @@ export async function GET(request: NextRequest) {
       })
 
       const summariesWithDecryptedData = weeklySummaries.map(summary => ({
-        ...summary,
+        id: summary.id,
         content: summary.content, // Return the serialized encrypted data string for client decryption
+        startDate: summary.weekStartDate.toISOString(),
+        endDate: summary.weekEndDate.toISOString(),
+        createdAt: summary.createdAt.toISOString(),
         generatedProof: summary.generatedProof // Return the serialized encrypted proof for client decryption
       }))
 
@@ -199,8 +202,11 @@ export async function GET(request: NextRequest) {
       })
 
       const summariesWithDecryptedData = monthlySummaries.map(summary => ({
-        ...summary,
+        id: summary.id,
         content: summary.content, // Return the serialized encrypted data string for client decryption
+        startDate: summary.monthStartDate.toISOString(),
+        endDate: summary.monthEndDate.toISOString(),
+        createdAt: summary.createdAt.toISOString(),
         generatedProof: summary.generatedProof // Return the serialized encrypted proof for client decryption
       }))
 
@@ -213,8 +219,11 @@ export async function GET(request: NextRequest) {
       })
 
       const summariesWithDecryptedData = yearlySummaries.map(summary => ({
-        ...summary,
+        id: summary.id,
         content: summary.content, // Return the serialized encrypted data string for client decryption
+        startDate: summary.yearStartDate.toISOString(),
+        endDate: summary.yearEndDate.toISOString(),
+        createdAt: summary.createdAt.toISOString(),
         generatedProof: summary.generatedProof // Return the serialized encrypted proof for client decryption
       }))
 

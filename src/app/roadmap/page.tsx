@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Modal } from '@/components/ui/modal'
 import { useSession } from 'next-auth/react'
 import { useE2EE } from '@/hooks/useE2EE'
 import { CalendarSync } from '@/components/features/roadmap/CalendarSync'
@@ -33,10 +32,6 @@ export default function RoadmapPage() {
   const [showCalendarSync, setShowCalendarSync] = useState(false)
   const [roadmapToSync, setRoadmapToSync] = useState<Roadmap | null>(null)
   
-  // Modal state
-  const [selectedRoadmap, setSelectedRoadmap] = useState<Roadmap | null>(null)
-  const [isModalVisible, setIsModalVisible] = useState(false)
-  
   // Inline editing state
   const [editingRoadmapTitle, setEditingRoadmapTitle] = useState<string | null>(null)
   const [editingRoadmapTitleValue, setEditingRoadmapTitleValue] = useState('')
@@ -48,8 +43,9 @@ export default function RoadmapPage() {
   }>({ title: '', description: '', dueDate: '' })
   const [isUpdatingRoadmap, setIsUpdatingRoadmap] = useState(false)
   const [isUpdatingMilestone, setIsUpdatingMilestone] = useState(false)
-  const [flippedMilestones, setFlippedMilestones] = useState<Set<string>>(new Set())
-  const [currentCardIndices, setCurrentCardIndices] = useState<Record<string, number>>({})
+  // Enhanced milestone display state
+  const [expandedMilestone, setExpandedMilestone] = useState<string | null>(null)
+  const [collapsedRoadmaps, setCollapsedRoadmaps] = useState<Set<string>>(new Set())
 
   const router = useRouter()
   useSession({
@@ -66,19 +62,6 @@ export default function RoadmapPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isReady, hasKey])
-
-  // Handle modal animation timing
-  useEffect(() => {
-    if (selectedRoadmap) {
-      setIsModalVisible(true)
-    } else {
-      // Delay hiding to allow fade out animation
-      const timer = setTimeout(() => {
-        setIsModalVisible(false)
-      }, 200)
-      return () => clearTimeout(timer)
-    }
-  }, [selectedRoadmap])
 
   interface EncryptedMilestone {
     id: string
@@ -200,37 +183,40 @@ export default function RoadmapPage() {
     return dueDate < today
   }
 
-  const toggleMilestoneFlip = (milestoneId: string) => {
-    setFlippedMilestones(prev => {
-      const next = new Set(prev)
-      if (next.has(milestoneId)) next.delete(milestoneId)
-      else next.add(milestoneId)
-      return next
+  // Enhanced milestone interactions
+  const toggleMilestoneExpansion = (milestoneId: string) => {
+    setExpandedMilestone(prev => prev === milestoneId ? null : milestoneId)
+  }
+
+  const toggleRoadmapCollapse = (roadmapId: string) => {
+    setCollapsedRoadmaps(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(roadmapId)) {
+        newSet.delete(roadmapId)
+      } else {
+        newSet.add(roadmapId)
+      }
+      return newSet
     })
   }
 
-  const navigateToCard = (roadmapId: string, direction: 'prev' | 'next') => {
-    const currentIndex = currentCardIndices[roadmapId] || 0
-    const roadmap = roadmaps.find(r => r.id === roadmapId)
-    if (!roadmap) return
-
-    const totalCards = roadmap.milestones.length
-    let newIndex: number
-
-    if (direction === 'prev') {
-      newIndex = currentIndex > 0 ? currentIndex - 1 : totalCards - 1
-    } else {
-      newIndex = currentIndex < totalCards - 1 ? currentIndex + 1 : 0
-    }
-
-    setCurrentCardIndices(prev => ({
-      ...prev,
-      [roadmapId]: newIndex
-    }))
+  const formatDueDate = (dueDate: string | undefined) => {
+    if (!dueDate) return null
+    // Parse YYYY-MM-DD format directly to avoid timezone issues
+    const [year, month, day] = dueDate.split('T')[0].split('-')
+    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    })
   }
 
-  const getCurrentCardIndex = (roadmapId: string) => {
-    return currentCardIndices[roadmapId] || 0
+  const getMilestoneStatusClass = (milestone: Milestone) => {
+    if (milestone.status === 'COMPLETED') return 'completed'
+    if (milestone.status === 'IN_PROGRESS') return 'in-progress'
+    if (isOverdue(milestone.dueDate)) return 'overdue'
+    return 'pending'
   }
 
   // Roadmap title editing
@@ -483,414 +469,335 @@ export default function RoadmapPage() {
             </button>
           </div>
         ) : (
-          <div className="paper-grid-2">
+          <div className="space-y-8">
             {roadmaps.map((roadmap) => (
               <div key={roadmap.id} className="paper-card paper-elevated">
                 {/* Roadmap Header */}
-                <div className="border-b border-gray-200 pb-4 mb-4">
+                <div className="border-b border-gray-200 pb-6 mb-6">
                   <div className="space-y-4">
-                    {/* Title Row */}
-                    <div>
-                      {editingRoadmapTitle === roadmap.id ? (
-                        <div className="space-y-3">
-                          <input
-                            type="text"
-                            value={editingRoadmapTitleValue}
-                            onChange={(e) => setEditingRoadmapTitleValue(e.target.value)}
-                            className="form-input text-xl font-semibold"
-                            autoFocus
-                          />
-                          <div className="flex items-center space-x-2">
-                            <button
-                              onClick={() => saveRoadmapTitle(roadmap.id)}
-                              disabled={isUpdatingRoadmap}
-                              className="text-sm font-medium text-green-600 hover:text-green-800"
-                            >
-                              {isUpdatingRoadmap ? 'Saving...' : 'Save'}
-                            </button>
-                            <button
-                              onClick={cancelEditingRoadmapTitle}
-                              className="text-sm font-medium text-gray-600 hover:text-gray-800"
-                            >
-                              Cancel
-                            </button>
+                    {/* Title and Actions Row */}
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        {editingRoadmapTitle === roadmap.id ? (
+                          <div className="space-y-3">
+                            <input
+                              type="text"
+                              value={editingRoadmapTitleValue}
+                              onChange={(e) => setEditingRoadmapTitleValue(e.target.value)}
+                              className="form-input text-2xl font-semibold w-full"
+                              autoFocus
+                            />
+                            <div className="flex items-center space-x-3">
+                              <button
+                                onClick={() => saveRoadmapTitle(roadmap.id)}
+                                disabled={isUpdatingRoadmap}
+                                className="btn-primary text-sm py-1 px-3"
+                              >
+                                {isUpdatingRoadmap ? 'Saving...' : 'Save'}
+                              </button>
+                              <button
+                                onClick={cancelEditingRoadmapTitle}
+                                className="text-sm font-medium text-gray-600 hover:text-gray-800"
+                              >
+                                Cancel
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-between">
-                          <h3 className="heading-secondary mb-0 cursor-pointer hover:text-gray-700 transition-colors"
-                              onClick={() => setSelectedRoadmap(roadmap)}>
-                            {roadmap.title}
-                          </h3>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="flex items-center space-x-3">
+                              <button
+                                onClick={() => toggleRoadmapCollapse(roadmap.id)}
+                                className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded flex-shrink-0"
+                                title={collapsedRoadmaps.has(roadmap.id) ? "Expand roadmap" : "Collapse roadmap"}
+                              >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={collapsedRoadmaps.has(roadmap.id) ? "M9 5l7 7-7 7" : "M19 9l-7 7-7-7"} />
+                                </svg>
+                              </button>
+                              <h2 className="heading-primary text-2xl mb-0 text-elegant flex-1">
+                                {roadmap.title}
+                              </h2>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  startEditingRoadmapTitle(roadmap.id, roadmap.title)
+                                }}
+                                className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded flex-shrink-0"
+                                title="Edit title"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
+                            </div>
+                            {roadmap.description && (
+                              <p className="text-paper-secondary text-lg text-elegant">
+                                {roadmap.description}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex items-center space-x-2 ml-6">
+                        {roadmap.milestones.length > 0 && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
-                              startEditingRoadmapTitle(roadmap.id, roadmap.title)
+                              setRoadmapToSync(roadmap)
+                              setShowCalendarSync(true)
                             }}
-                            className="text-gray-600 hover:text-gray-800 transition-colors p-1 rounded"
-                            title="Edit title"
+                            className="flex items-center space-x-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 hover:border-gray-400 px-3 py-1.5 rounded-md transition-colors"
+                            title="Sync to Calendar"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
+                            <span>Sync</span>
                           </button>
-                        </div>
-                      )}
-                      {roadmap.description && (
-                        <p className="text-subtle text-elegant mt-2">
-                          {roadmap.description}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Action Buttons Row */}
-                    <div className="flex items-center justify-end space-x-2">
-                      {roadmap.milestones.length > 0 && (
+                        )}
+                        
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            setRoadmapToSync(roadmap)
-                            setShowCalendarSync(true)
+                            handleDeleteRoadmap(roadmap.id)
                           }}
-                          className="flex items-center space-x-1 text-xs text-gray-600 hover:text-gray-800 border border-gray-300 hover:border-gray-400 px-2 py-1 rounded transition-colors"
-                          title="Sync to Calendar"
+                          className="text-red-500 hover:text-red-700 transition-colors p-1.5 rounded-md hover:bg-red-50"
+                          title="Delete Roadmap"
                         >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
-                          <span>Sync</span>
                         </button>
-                      )}
-                      
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDeleteRoadmap(roadmap.id)
-                        }}
-                        className="text-red-500 hover:text-red-700 transition-colors p-1 rounded"
-                        title="Delete Roadmap"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
+                      </div>
                     </div>
 
-                    {/* Progress Bar Row */}
-                    <div className="w-full">
-                      <div className="flex items-center justify-between mb-2">
-                                              <span className="text-sm font-medium text-gray-700 text-elegant">
-                        {roadmap.milestones.filter(m => m.status === 'COMPLETED').length}/{roadmap.milestones.length} completed
+                    {/* Progress Indicator */}
+                    <div className="flex items-center space-x-4 pt-1">
+                      <span className="text-sm text-gray-600 text-elegant whitespace-nowrap font-medium">
+                        {roadmap.milestones.filter(m => m.status === 'COMPLETED').length} of {roadmap.milestones.length} completed
                       </span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-black h-2 rounded-full transition-all duration-300"
-                          style={{ 
-                            width: `${roadmap.milestones.length > 0 
-                              ? (roadmap.milestones.filter(m => m.status === 'COMPLETED').length / roadmap.milestones.length) * 100 
-                              : 0}%` 
-                          }}
-                        />
+                      <div className="flex-1 max-w-lg">
+                        <div className="w-full bg-gray-200 rounded-full h-3 shadow-inner">
+                          <div 
+                            className="bg-gradient-to-r from-gray-800 to-black h-3 rounded-full transition-all duration-300 shadow-sm"
+                            style={{ 
+                              width: `${roadmap.milestones.length > 0 
+                                ? (roadmap.milestones.filter(m => m.status === 'COMPLETED').length / roadmap.milestones.length) * 100 
+                                : 0}%` 
+                            }}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Preview of milestones */}
-                <div className="pt-4">
+                {/* Milestones Timeline */}
+                {!collapsedRoadmaps.has(roadmap.id) && (
+                <div className="roadmap-timeline">
                   {roadmap.milestones.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500 text-elegant">
-                      No milestones yet. Click on the roadmap title to add milestones.
+                    <div className="paper-empty py-12">
+                      <div className="paper-empty-icon">
+                        <Map className="h-8 w-8 text-gray-400" />
+                      </div>
+                      <div className="paper-empty-title text-elegant">No milestones yet</div>
+                      <div className="paper-empty-description text-elegant">Add milestones to start tracking your progress.</div>
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      {roadmap.milestones
-                        .sort((a, b) => a.order - b.order)
-                        .slice(0, 3)
-                        .map((milestone) => (
-                          <div key={milestone.id} className="flex items-center space-x-2 text-sm">
-                            <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
-                              milestone.status === 'COMPLETED' ? 'bg-green-500' : 'bg-gray-300'
-                            }`} />
-                            <span className={`flex-1 ${
-                              milestone.status === 'COMPLETED' ? 'line-through text-gray-500' : 'text-gray-700'
-                            }`}>
-                              {milestone.title}
-                            </span>
+                    roadmap.milestones
+                      .sort((a, b) => a.order - b.order)
+                      .map((milestone, index) => (
+                        <div key={milestone.id} className="timeline-item">
+                          {/* Timeline Connector */}
+                          <div className="timeline-connector">
+                            <div className={`timeline-dot ${getMilestoneStatusClass(milestone)}`}>
+                              {milestone.status === 'COMPLETED' && (
+                                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              )}
+                            </div>
+                            {index < roadmap.milestones.length - 1 && (
+                              <div className={`timeline-line ${milestone.status === 'COMPLETED' ? 'completed' : 'pending'}`} />
+                            )}
                           </div>
-                        ))}
-                      {roadmap.milestones.length > 3 && (
-                        <div className="text-sm text-gray-500 text-center pt-2 text-elegant">
-                          +{roadmap.milestones.length - 3} more milestones
+
+                          {/* Timeline Content */}
+                          <div className="timeline-content">
+                            <div className="timeline-card">
+                              <div className="timeline-card-header">
+                                <div className="flex items-start space-x-3">
+                                  <button
+                                    onClick={() => toggleMilestoneCompletion(roadmap.id, milestone.id)}
+                                    className={`w-5 h-5 rounded border-2 flex-shrink-0 transition-colors flex items-center justify-center mt-0.5 ${
+                                      milestone.status === 'COMPLETED'
+                                        ? 'bg-black border-black'
+                                        : 'border-gray-300 hover:border-gray-400'
+                                    }`}
+                                    title={milestone.status === 'COMPLETED' ? 'Mark as pending' : 'Mark as completed'}
+                                  >
+                                    {milestone.status === 'COMPLETED' && (
+                                      <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                    )}
+                                  </button>
+                                  
+                                  <div className="flex-1 min-w-0">
+                                    {editingMilestone === milestone.id ? (
+                                      <input
+                                        type="text"
+                                        value={editingMilestoneData.title}
+                                        onChange={(e) => setEditingMilestoneData(prev => ({ ...prev, title: e.target.value }))}
+                                        className="form-input text-lg font-medium w-full"
+                                        autoFocus
+                                      />
+                                    ) : (
+                                      <h4 className={`text-lg font-medium mb-1 text-elegant ${
+                                        milestone.status === 'COMPLETED' ? 'line-through text-gray-500' : 'text-gray-900'
+                                      }`}>
+                                        {milestone.title}
+                                      </h4>
+                                    )}
+                                    
+                                    {milestone.dueDate && (
+                                      <div className="flex items-center space-x-2 text-sm">
+                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        </svg>
+                                        <span className={`${
+                                          milestone.status === 'COMPLETED' 
+                                            ? 'text-gray-400'
+                                            : isOverdue(milestone.dueDate)
+                                            ? 'text-red-600 font-medium'
+                                            : 'text-gray-600'
+                                        }`}>
+                                          Due: {formatDueDate(milestone.dueDate)}
+                                        </span>
+                                        {milestone.status !== 'COMPLETED' && isOverdue(milestone.dueDate) && (
+                                          <span className="paper-badge paper-badge-error text-xs">
+                                            Overdue
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Expandable Content */}
+                              {(editingMilestone === milestone.id || 
+                                (expandedMilestone === milestone.id && milestone.description)) && (
+                                <div className="timeline-card-content">
+                                  {editingMilestone === milestone.id ? (
+                                    <div className="space-y-3">
+                                      <textarea
+                                        value={editingMilestoneData.description}
+                                        onChange={(e) => setEditingMilestoneData(prev => ({ ...prev, description: e.target.value }))}
+                                        className="form-textarea text-sm w-full"
+                                        placeholder="Description (optional)"
+                                        rows={3}
+                                      />
+                                      <input
+                                        type="date"
+                                        value={editingMilestoneData.dueDate}
+                                        onChange={(e) => setEditingMilestoneData(prev => ({ ...prev, dueDate: e.target.value }))}
+                                        className="form-input text-sm"
+                                      />
+                                    </div>
+                                  ) : milestone.description ? (
+                                    <p className="text-sm text-gray-600 whitespace-pre-wrap text-elegant">
+                                      {milestone.description}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              )}
+
+                              {/* Action Footer */}
+                              <div className="timeline-card-footer">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center space-x-4">
+                                    {milestone.status === 'COMPLETED' && (
+                                      <span className="text-xs text-green-600 flex items-center space-x-1">
+                                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                        </svg>
+                                        <span>Completed</span>
+                                      </span>
+                                    )}
+                                    
+                                    {milestone.description && expandedMilestone !== milestone.id && editingMilestone !== milestone.id && (
+                                      <button
+                                        onClick={() => toggleMilestoneExpansion(milestone.id)}
+                                        className="text-xs text-gray-500 hover:text-gray-700"
+                                      >
+                                        Show details
+                                      </button>
+                                    )}
+                                    
+                                    {expandedMilestone === milestone.id && editingMilestone !== milestone.id && milestone.description && (
+                                      <button
+                                        onClick={() => toggleMilestoneExpansion(milestone.id)}
+                                        className="text-xs text-gray-500 hover:text-gray-700"
+                                      >
+                                        Hide details
+                                      </button>
+                                    )}
+                                  </div>
+                                  
+                                  <div className="flex items-center space-x-2">
+                                    {editingMilestone === milestone.id ? (
+                                      <>
+                                        <button
+                                          onClick={() => saveMilestone(roadmap.id, milestone.id)}
+                                          disabled={isUpdatingMilestone}
+                                          className="text-xs font-medium text-green-600 hover:text-green-800"
+                                        >
+                                          {isUpdatingMilestone ? 'Saving...' : 'Save'}
+                                        </button>
+                                        <button
+                                          onClick={cancelEditingMilestone}
+                                          className="text-xs font-medium text-gray-600 hover:text-gray-800"
+                                        >
+                                          Cancel
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <button
+                                          onClick={() => startEditingMilestone(milestone)}
+                                          className="text-xs text-gray-500 hover:text-gray-700"
+                                          title="Edit milestone"
+                                        >
+                                          Edit
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeleteMilestone(roadmap.id, milestone.id)}
+                                          className="text-xs text-red-500 hover:text-red-700"
+                                          title="Delete milestone"
+                                        >
+                                          Delete
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                      )}
-                    </div>
+                      ))
                   )}
                 </div>
+                )}
               </div>
             ))}
           </div>
         )}
 
-        {/* Roadmap Details Modal */}
-        {selectedRoadmap && (
-          <Modal 
-            isOpen={isModalVisible} 
-            onClose={() => setSelectedRoadmap(null)} 
-            maxWidth="4xl" 
-            showCloseButton={false}
-          >
-            <div 
-              className={`bg-white rounded-xl shadow-2xl border border-gray-100 p-8 max-w-4xl max-h-[90vh] overflow-y-auto w-full transition-all duration-300 ease-out ${
-                isModalVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
-              }`}
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="flex justify-between items-start mb-6">
-                <div>
-                  <h3 className="heading-secondary mb-2">
-                    {selectedRoadmap.title}
-                  </h3>
-                  {selectedRoadmap.description && (
-                    <p className="text-subtle">
-                      {selectedRoadmap.description}
-                    </p>
-                  )}
-                </div>
-                <button
-                  onClick={() => setSelectedRoadmap(null)}
-                  className="text-gray-400 hover:text-gray-600 text-2xl font-light"
-                >
-                  ×
-                </button>
-              </div>
-
-              {selectedRoadmap.milestones.length === 0 ? (
-                <div className="text-center py-12 text-gray-500">
-                  No milestones yet. You can add milestones by editing this roadmap.
-                </div>
-              ) : (
-                <div className="stacked-cards-container">
-                  {selectedRoadmap.milestones
-                    .sort((a, b) => a.order - b.order)
-                    .map((milestone, index) => (
-                      <div 
-                        key={milestone.id} 
-                        className="stacked-card"
-                        style={{ 
-                          zIndex: selectedRoadmap.milestones.length - index,
-                          transform: 'translateY(0px) scale(1)',
-                          display: index === getCurrentCardIndex(selectedRoadmap.id) ? 'block' : 'none'
-                        }}
-                        onClick={() => toggleMilestoneFlip(milestone.id)}
-                      >
-                        <div className={`stacked-card-inner ${flippedMilestones.has(milestone.id) ? 'is-flipped' : ''}`}>
-                          {/* Front */}
-                          <div className="stacked-card-face stacked-card-front">
-                            <div className="stacked-card-header">
-                              <div className="stacked-card-counter">
-                                <span>{getCurrentCardIndex(selectedRoadmap.id) + 1} of {selectedRoadmap.milestones.length}</span>
-                                <div className="stacked-card-counter-dots">
-                                  {selectedRoadmap.milestones.map((_, dotIndex) => (
-                                    <div 
-                                      key={dotIndex}
-                                      className={`stacked-card-counter-dot ${dotIndex === getCurrentCardIndex(selectedRoadmap.id) ? 'active' : ''}`}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleDeleteMilestone(selectedRoadmap.id, milestone.id)
-                                  }}
-                                  className="text-red-500 hover:text-red-700 text-xs"
-                                  title="Delete milestone"
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            </div>
-                            
-                            <div className="stacked-card-content">
-                              <div className="flex items-center justify-center mb-4">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    toggleMilestoneCompletion(selectedRoadmap.id, milestone.id)
-                                  }}
-                                  className={`w-6 h-6 rounded border-2 flex-shrink-0 transition-colors flex items-center justify-center ${
-                                    milestone.status === 'COMPLETED'
-                                      ? 'bg-black border-black'
-                                      : 'border-gray-300 hover:border-gray-400'
-                                  }`}
-                                  title={milestone.status === 'COMPLETED' ? 'Mark as pending' : 'Mark as completed'}
-                                >
-                                  {milestone.status === 'COMPLETED' && (
-                                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                    </svg>
-                                  )}
-                                </button>
-                              </div>
-                              
-                              <h4 className={`text-xl font-medium mb-4 ${
-                                milestone.status === 'COMPLETED' ? 'line-through text-gray-500' : 'text-black'
-                              }`}>
-                                {milestone.title}
-                              </h4>
-                              
-                              {milestone.dueDate && (
-                                <div className="flex items-center justify-center space-x-2 mb-4">
-                                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                  </svg>
-                                  <span className={`text-sm ${
-                                    milestone.status === 'COMPLETED' 
-                                      ? 'text-gray-400'
-                                      : isOverdue(milestone.dueDate)
-                                      ? 'text-red-600 font-medium'
-                                      : 'text-gray-600'
-                                  }`}>
-                                    Due: {milestone.dueDate}
-                                    {milestone.status !== 'COMPLETED' && isOverdue(milestone.dueDate) && (
-                                      <span className="ml-2 px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">
-                                        Overdue
-                                      </span>
-                                    )}
-                                  </span>
-                                </div>
-                              )}
-
-                              {milestone.status === 'COMPLETED' && (
-                                <div className="text-sm text-green-600 flex items-center justify-center space-x-1">
-                                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                  </svg>
-                                  <span>Completed</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Back */}
-                          <div className="stacked-card-face stacked-card-back">
-                            <div className="stacked-card-header">
-                              <span className="text-sm font-medium text-gray-700 uppercase tracking-wide">Details</span>
-                              <div className="flex items-center space-x-2">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    startEditingMilestone(milestone)
-                                  }}
-                                  className="text-xs text-gray-600 hover:text-gray-800"
-                                  title="Edit milestone"
-                                >
-                                  Edit
-                                </button>
-                              </div>
-                            </div>
-                            
-                            {editingMilestone === milestone.id ? (
-                              <div className="w-full space-y-3 flex-1">
-                                <div>
-                                  <input
-                                    type="text"
-                                    value={editingMilestoneData.title}
-                                    onChange={(e) => setEditingMilestoneData(prev => ({ ...prev, title: e.target.value }))}
-                                    className="form-input text-lg font-medium"
-                                    placeholder="Milestone title"
-                                    autoFocus
-                                  />
-                                </div>
-                                <div>
-                                  <textarea
-                                    value={editingMilestoneData.description}
-                                    onChange={(e) => setEditingMilestoneData(prev => ({ ...prev, description: e.target.value }))}
-                                    className="form-textarea text-sm"
-                                    placeholder="Description (optional)"
-                                    rows={4}
-                                  />
-                                </div>
-                                <div>
-                                  <input
-                                    type="date"
-                                    value={editingMilestoneData.dueDate}
-                                    onChange={(e) => setEditingMilestoneData(prev => ({ ...prev, dueDate: e.target.value }))}
-                                    className="form-input text-sm"
-                                  />
-                                </div>
-                                <div className="stacked-card-actions">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      saveMilestone(selectedRoadmap.id, milestone.id)
-                                    }}
-                                    disabled={isUpdatingMilestone}
-                                    className="text-sm font-medium text-green-600 hover:text-green-800"
-                                  >
-                                    {isUpdatingMilestone ? 'Saving...' : 'Save'}
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      cancelEditingMilestone()
-                                    }}
-                                    className="text-sm font-medium text-gray-600 hover:text-gray-800"
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex-1 flex flex-col">
-                                <div className="text-sm text-gray-700 whitespace-pre-wrap mb-4 flex-1">
-                                  {milestone.description || 'No detailed instructions provided.'}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  
-                  {/* Navigation Controls */}
-                  {selectedRoadmap.milestones.length > 1 && (
-                    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center space-x-4 z-10">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          navigateToCard(selectedRoadmap.id, 'prev')
-                        }}
-                        className="flex items-center justify-center w-10 h-10 bg-white border border-gray-300 rounded-full shadow-sm hover:shadow-md transition-shadow"
-                        title="Previous milestone"
-                      >
-                        <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                        </svg>
-                      </button>
-                      
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          navigateToCard(selectedRoadmap.id, 'next')
-                        }}
-                        className="flex items-center justify-center w-10 h-10 bg-white border border-gray-300 rounded-full shadow-sm hover:shadow-md transition-shadow"
-                        title="Next milestone"
-                      >
-                        <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </Modal>
-        )}
 
         {/* Calendar Sync Modal */}
         {showCalendarSync && roadmapToSync && (

@@ -11,7 +11,9 @@ import { useYearlySummary } from '@/hooks/useYearlySummary'
 import { formatJournalDate } from '@/lib/date-utils'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Archive, PenTool } from 'lucide-react'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
+import { Archive, PenTool, Loader2, BookOpen, FileText, Calendar } from 'lucide-react'
 
 interface Journal {
   id: string
@@ -76,11 +78,157 @@ interface ReadingLog {
   }
 }
 
+interface DecryptedReadingLog extends ReadingLog {
+  notes: string | null
+  sessionDate: string | null
+  reading: {
+    id: string
+    title: string | null
+    docToken: string
+    decryptedTitle: string | null
+  }
+}
+
+function ReflectionAnswerCard({ kind, index, question, answer, onSave }: { 
+  kind: 'socratic' | 'task2', 
+  index: number, 
+  question: string, 
+  answer: string,
+  onSave: (value: string) => Promise<void>
+}) {
+  const [value, setValue] = useState(answer)
+  const [saving, setSaving] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+
+  const handleSave = async () => {
+    try {
+      setSaving('saving')
+      await onSave(value)
+      setSaving('saved')
+      setTimeout(() => setSaving('idle'), 1500)
+    } catch (e) {
+      setSaving('error')
+    }
+  }
+
+  return (
+    <div className="paper-card paper-spacing-md">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
+          <span className="text-xs font-medium text-gray-600">{index + 1}</span>
+        </div>
+        <span className="text-sm font-medium text-gray-600 text-elegant">Question {index + 1}</span>
+      </div>
+      
+      <div className="prose prose-gray max-w-none text-gray-800 mb-4">
+        <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+          {question}
+        </ReactMarkdown>
+      </div>
+      
+      <div>
+        <label className="paper-label">{kind === 'socratic' ? 'Your Answer' : 'Your Notes'} (Markdown + LaTeX supported)</label>
+        <textarea
+          className="paper-textarea h-32 w-full"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={kind === 'socratic' ? 'Write your answer...' : 'Write your notes...'}
+        />
+        <div className="mt-3 flex items-center justify-end gap-3">
+          <button onClick={handleSave} className="btn-primary btn-small" disabled={saving === 'saving'}>
+            {saving === 'saving' ? (
+              <span className="inline-flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> Saving...</span>
+            ) : 'Save'}
+          </button>
+          <div className="text-xs">
+            {saving === 'saved' && <span className="text-green-600">Saved</span>}
+            {saving === 'error' && <span className="text-red-600">Save failed</span>}
+          </div>
+        </div>
+        {value.trim() && (
+          <div className="mt-4">
+            <div className="text-xs text-gray-600 mb-2 text-elegant">Preview</div>
+            <div className="prose prose-gray max-w-none bg-gray-50 rounded-lg p-4 border border-gray-100">
+              <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                {value}
+              </ReactMarkdown>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ReadingLogEditCard({ log, onSave, onCancel }: {
+  log: DecryptedReadingLog,
+  onSave: (notes: string) => Promise<void>,
+  onCancel: () => void
+}) {
+  const [notes, setNotes] = useState(log.notes || '')
+  const [saving, setSaving] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+
+  const handleSave = async () => {
+    try {
+      setSaving('saving')
+      await onSave(notes)
+      setSaving('saved')
+      setTimeout(() => setSaving('idle'), 1500)
+    } catch (e) {
+      setSaving('error')
+    }
+  }
+
+  return (
+    <div className="paper-card paper-spacing-md">
+      <div className="mb-4">
+        <h3 className="card-title text-elegant mb-2">Edit Reading Log</h3>
+        <p className="text-sm text-gray-500 text-elegant">
+          Document: {log.reading.decryptedTitle} • 
+          {log.sessionDate ? new Date(log.sessionDate + 'T00:00:00').toLocaleDateString() : 'N/A'}
+        </p>
+      </div>
+      
+      <div>
+        <label className="paper-label">Notes (Markdown + LaTeX supported)</label>
+        <textarea
+          className="paper-textarea h-32 w-full"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Write your notes about this reading session..."
+        />
+        <div className="mt-3 flex items-center justify-end gap-3">
+          <button onClick={onCancel} className="btn-secondary btn-small">
+            Cancel
+          </button>
+          <button onClick={handleSave} className="btn-primary btn-small" disabled={saving === 'saving'}>
+            {saving === 'saving' ? (
+              <span className="inline-flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> Saving...</span>
+            ) : 'Save'}
+          </button>
+          <div className="text-xs">
+            {saving === 'saved' && <span className="text-green-600">Saved</span>}
+            {saving === 'error' && <span className="text-red-600">Save failed</span>}
+          </div>
+        </div>
+        {notes.trim() && (
+          <div className="mt-4">
+            <div className="text-xs text-gray-600 mb-2 text-elegant">Preview</div>
+            <div className="prose prose-gray max-w-none bg-gray-50 rounded-lg p-4 border border-gray-100">
+              <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                {notes}
+              </ReactMarkdown>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
 export default function HistoryPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const { hasKey, isReady, decryptSafely } = useE2EE()
+  const { hasKey, isReady, decryptSafely, encrypt } = useE2EE()
   const { generateMonthlySummaries } = useMonthlySummary() // This will auto-trigger monthly summary generation
   useYearlySummary() // This will auto-trigger yearly summary generation
   
@@ -89,12 +237,14 @@ export default function HistoryPage() {
   const [monthlySummaries, setMonthlySummaries] = useState<HierarchicalSummary[]>([])
   const [yearlySummaries, setYearlySummaries] = useState<HierarchicalSummary[]>([])
   const [readingReflections, setReadingReflections] = useState<ReadingReflection[]>([])
-  const [readingLogs, setReadingLogs] = useState<ReadingLog[]>([])
+  const [readingLogs, setReadingLogs] = useState<DecryptedReadingLog[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedView, setSelectedView] = useState<'journals' | 'summaries' | 'reflections' | 'logs'>('journals')
   const [showCoolingPeriodMessage, setShowCoolingPeriodMessage] = useState(false)
   const [coolingPeriodMessage, setCoolingPeriodMessage] = useState('')
   const [deletingReflectionId, setDeletingReflectionId] = useState<string | null>(null)
+  const [deletingLogId, setDeletingLogId] = useState<string | null>(null)
+  const [editingLogId, setEditingLogId] = useState<string | null>(null)
   const [errorModal, setErrorModal] = useState<{ isOpen: boolean; title: string; message: string }>({ isOpen: false, title: '', message: '' })
 
 
@@ -201,9 +351,7 @@ export default function HistoryPage() {
             try {
               return {
                 ...summary,
-                content: await decryptSafely(summary.content),
-                startDate: summary.startDate,
-                endDate: summary.endDate
+                content: await decryptSafely(summary.content)
               }
             } catch (error) {
               console.error('Failed to decrypt weekly summary:', summary.id, error)
@@ -222,9 +370,7 @@ export default function HistoryPage() {
             try {
               return {
                 ...summary,
-                content: await decryptSafely(summary.content),
-                startDate: summary.monthStartDate,
-                endDate: summary.monthEndDate
+                content: await decryptSafely(summary.content)
               }
             } catch (error) {
               console.error('Failed to decrypt monthly summary:', summary.id, error)
@@ -243,9 +389,7 @@ export default function HistoryPage() {
             try {
               return {
                 ...summary,
-                content: await decryptSafely(summary.content),
-                startDate: summary.yearStartDate,
-                endDate: summary.yearEndDate
+                content: await decryptSafely(summary.content)
               }
             } catch (error) {
               console.error('Failed to decrypt yearly summary:', summary.id, error)
@@ -279,7 +423,7 @@ export default function HistoryPage() {
             }
           })
         )
-        const validLogs = decryptedLogs.filter((log): log is ReadingLog & { reading: { decryptedTitle: string | null }, sessionDate: string | null } => log !== null)
+        const validLogs = decryptedLogs.filter((log): log is DecryptedReadingLog => log !== null)
         setReadingLogs(validLogs)
       }
 
@@ -292,12 +436,6 @@ export default function HistoryPage() {
       setLoading(false)
     }
   }
-
-
-
-
-
-
 
   const handleEditAttempt = (journal: Journal) => {
     if (journal.isInCoolingPeriod) {
@@ -448,6 +586,63 @@ export default function HistoryPage() {
     }
   }
 
+  const handleDeleteLog = async (logId: string) => {
+    if (confirm('Are you sure you want to delete this reading log? This action cannot be undone.')) {
+      setDeletingLogId(logId)
+      try {
+        const response = await fetch(`/api/reading/logs?id=${logId}`, {
+          method: 'DELETE'
+        })
+
+        if (response.ok) {
+          // Remove from state
+          setReadingLogs(prev => prev.filter(log => log.id !== logId))
+          // Success - no alert needed
+        } else {
+          const error = await response.json()
+          setErrorModal({ isOpen: true, title: 'Delete Failed', message: `Failed to delete reading log: ${error.error || 'Unknown error'}` })
+        }
+      } catch (error) {
+        console.error('Failed to delete reading log:', error)
+        setErrorModal({ isOpen: true, title: 'Delete Failed', message: 'Failed to delete reading log. Please try again.' })
+      } finally {
+        setDeletingLogId(null)
+      }
+    }
+  }
+
+  const handleEditLog = async (logId: string, notes: string) => {
+    try {
+      const encryptedNotes = await encrypt(notes)
+      const response = await fetch(`/api/reading/logs?id=${logId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          notes: encryptedNotes
+        })
+      })
+
+      if (response.ok) {
+        // Update the log in state
+        setReadingLogs(prev => prev.map(log => 
+          log.id === logId 
+            ? { ...log, notes } 
+            : log
+        ))
+        setEditingLogId(null)
+        // Success - no alert needed
+      } else {
+        const error = await response.json()
+        setErrorModal({ isOpen: true, title: 'Update Failed', message: `Failed to update reading log: ${error.error || 'Unknown error'}` })
+      }
+    } catch (error) {
+      console.error('Failed to update reading log:', error)
+      setErrorModal({ isOpen: true, title: 'Update Failed', message: 'Failed to update reading log. Please try again.' })
+    }
+  }
+
   const handleToggleHiddenFromAI = async (summaryId: string, currentHiddenState: boolean) => {
     try {
       const response = await fetch('/api/journal/summary/save', {
@@ -491,7 +686,7 @@ export default function HistoryPage() {
   if (status === 'loading' || !hasKey || !isReady) {
     return (
       <div className="page-container paper-texture">
-        <div className="content-wrapper-4xl">
+        <div className="content-wrapper-7xl">
           <div className="paper-loading">
             <div className="paper-loading-spinner"></div>
             <div className="loading-text text-elegant ml-3">Loading your history...</div>
@@ -522,13 +717,14 @@ export default function HistoryPage() {
         </div>
 
         {/* View Selector */}
-        <div className="paper-nav mb-6">
+        <div className="paper-nav mb-8">
           <button
             onClick={() => setSelectedView('journals')}
             className={`paper-nav-item ${
               selectedView === 'journals' ? 'active' : ''
             }`}
           >
+            <PenTool className="h-4 w-4 mr-2" />
             Past Daily Journals
           </button>
           <button
@@ -537,6 +733,7 @@ export default function HistoryPage() {
               selectedView === 'reflections' ? 'active' : ''
             }`}
           >
+            <BookOpen className="h-4 w-4 mr-2" />
             Reading Reflections
           </button>
           <button
@@ -545,6 +742,7 @@ export default function HistoryPage() {
               selectedView === 'logs' ? 'active' : ''
             }`}
           >
+            <FileText className="h-4 w-4 mr-2" />
             Reading Logs
           </button>
           <button
@@ -553,6 +751,7 @@ export default function HistoryPage() {
               selectedView === 'summaries' ? 'active' : ''
             }`}
           >
+            <Calendar className="h-4 w-4 mr-2" />
             Hierarchical Summaries
           </button>
         </div>
@@ -563,196 +762,262 @@ export default function HistoryPage() {
             <div className="loading-text text-elegant ml-3">Loading...</div>
           </div>
         ) : selectedView === 'journals' ? (
-          <div className="paper-list">
-            <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-              <h3 className="text-sm font-medium text-paper mb-2 text-elegant">Cooling Period</h3>
-              <p className="text-sm text-paper-secondary text-elegant">
-              I know I, like many others, have a tendency to second-guess my own thoughts and feelings. To support more authentic self-reflection, I&apos;ve set a 7-day cooling period for journal entries. During this time, entries cannot be edited or deleted. However, you can choose to hide specific daily summaries from AI processing. Hidden summaries will not contribute to weekly or monthly reports, nor will they be used as context in AI conversations. 
-              </p>
+          <div className="space-y-6">
+            {/* Cooling Period Notice */}
+            <div className="paper-card paper-spacing-md bg-gray-50 border-gray-200">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-gray-600 text-sm font-medium">!</span>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-gray-800 mb-2 text-elegant">Cooling Period</h3>
+                  <p className="text-sm text-gray-700 text-elegant leading-relaxed">
+                    I know I, like many others, have a tendency to second-guess my own thoughts and feelings. To support more authentic self-reflection, I&apos;ve set a 7-day cooling period for journal entries. During this time, entries cannot be edited or deleted. However, you can choose to hide specific daily summaries from AI processing. Hidden summaries will not contribute to weekly or monthly reports, nor will they be used as context in AI conversations.
+                  </p>
+                </div>
+              </div>
             </div>
             
             {journals.length === 0 ? (
               <div className="paper-empty">
                 <div className="paper-empty-icon">
-                  <PenTool className="h-8 w-8 text-gray-400" />
+                  <PenTool className="h-12 w-12 text-gray-400" />
                 </div>
                 <div className="paper-empty-title text-elegant">No journal entries yet</div>
                 <div className="paper-empty-description text-elegant">Start writing to see your history here!</div>
               </div>
             ) : (
-              journals.map((journal) => (
-                <div key={journal.id} className="paper-card paper-spacing-md">
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <h3 className="text-lg font-semibold text-paper text-elegant mb-2">
-                        {journal.title || `Journal Entry - ${formatJournalDate(journal.date, 'UTC')}`}
-                      </h3>
-                      <p className="text-sm text-paper-secondary text-elegant">
-                        {formatJournalDate(journal.date, 'UTC')} • 
-                        {journal.isPast ? ' Past Entry' : ' Current Entry'}
-                        {journal.isInCoolingPeriod && ' • 7-day cooling period active'}
-                      </p>
-                    </div>
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => handleEditAttempt(journal)}
-                        className={`text-sm px-3 py-1 rounded transition-colors ${
-                          journal.canEdit
-                            ? 'bg-gray-100 text-paper hover:bg-gray-200 text-elegant'
-                            : 'bg-gray-50 text-paper-secondary cursor-not-allowed text-elegant'
-                        }`}
-                        disabled={!journal.canEdit}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteAttempt(journal)}
-                        className={`text-sm px-3 py-1 rounded transition-colors ${
-                          journal.canDelete
-                            ? 'bg-red-100 text-red-700 hover:bg-red-200 text-elegant'
-                            : 'bg-gray-50 text-paper-secondary cursor-not-allowed text-elegant'
-                        }`}
-                        disabled={!journal.canDelete}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div className="prose prose-sm max-w-none">
-                    <p className="text-paper whitespace-pre-wrap line-clamp-3 text-elegant">
-                      {journal.content}
-                    </p>
-                  </div>
-                  
-                  {journal.mood && (
-                    <div className="mt-4">
-                      <span className="paper-badge paper-badge-secondary text-elegant">
-                        Mood: {journal.mood}
-                      </span>
-                    </div>
-                  )}
-                  
-                  {journal.tags.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {journal.tags.map((tag, index) => (
-                        <span
-                          key={index}
-                          className="paper-badge paper-badge-secondary text-elegant"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {journal.dailySummary && (
-                    <div className={`mt-4 p-3 rounded border-l-4 ${
-                      journal.dailySummary.isHiddenFromAI 
-                        ? 'bg-gray-100 border-gray-500' 
-                        : 'bg-gray-50 border-gray-400'
-                    }`}>
-                      <div className="flex justify-between items-start mb-2">
-                        <h4 className="text-sm font-medium text-paper text-elegant">
-                          Daily Summary
-                          {journal.dailySummary.isHiddenFromAI && (
-                            <span className="ml-2 paper-badge paper-badge-secondary">
-                              Hidden from AI
-                            </span>
-                          )}
-                        </h4>
+              <div className="paper-list">
+                {journals.map((journal) => (
+                  <div key={journal.id} className="paper-card paper-spacing-md">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-paper text-elegant mb-2">
+                          {journal.title || `Journal Entry - ${formatJournalDate(journal.date, 'UTC')}`}
+                        </h3>
+                        <div className="flex items-center gap-4 text-sm text-paper-secondary text-elegant">
+                          <span>{formatJournalDate(journal.date, 'UTC')}</span>
+                          <span>•</span>
+                          <span>{journal.isPast ? 'Past Entry' : 'Current Entry'}</span>
+                                                     {journal.isInCoolingPeriod && (
+                             <>
+                               <span>•</span>
+                               <span className="text-gray-600">7-day cooling period active</span>
+                             </>
+                           )}
+                        </div>
+                      </div>
+                      <div className="flex space-x-2 ml-4">
                         <button
-                          onClick={() => handleToggleHiddenFromAI(journal.dailySummary!.id, journal.dailySummary!.isHiddenFromAI)}
-                          className={`text-sm px-3 py-1 rounded transition-colors ${
-                            journal.dailySummary!.isHiddenFromAI
-                              ? 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          } text-elegant`}
-                          title={journal.dailySummary!.isHiddenFromAI ? 'Show to AI' : 'Hide from AI'}
+                          onClick={() => handleEditAttempt(journal)}
+                          className={`text-sm px-3 py-1.5 rounded-lg transition-colors ${
+                            journal.canEdit
+                              ? 'bg-gray-100 text-paper hover:bg-gray-200 text-elegant'
+                              : 'bg-gray-50 text-paper-secondary cursor-not-allowed text-elegant'
+                          }`}
+                          disabled={!journal.canEdit}
                         >
-                          {journal.dailySummary!.isHiddenFromAI ? 'Show to AI' : 'Hide from AI'}
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteAttempt(journal)}
+                          className={`text-sm px-3 py-1.5 rounded-lg transition-colors ${
+                            journal.canDelete
+                              ? 'btn-danger-outline text-elegant'
+                              : 'bg-gray-50 text-paper-secondary cursor-not-allowed text-elegant'
+                          }`}
+                          disabled={!journal.canDelete}
+                        >
+                          Delete
                         </button>
                       </div>
-                      <p className="text-sm text-paper-secondary text-elegant">{journal.dailySummary.content}</p>
                     </div>
-                  )}
-                </div>
-              ))
+                    
+                    <div className="prose prose-sm max-w-none mb-4">
+                      <p className="text-paper whitespace-pre-wrap line-clamp-3 text-elegant leading-relaxed">
+                        {journal.content}
+                      </p>
+                    </div>
+                    
+                    <div className="flex flex-wrap items-center gap-3">
+                      {journal.mood && (
+                        <span className="paper-badge paper-badge-secondary text-elegant">
+                          Mood: {journal.mood}
+                        </span>
+                      )}
+                      
+                      {journal.tags.length > 0 && (
+                        journal.tags.map((tag, index) => (
+                          <span
+                            key={index}
+                            className="paper-badge paper-badge-secondary text-elegant"
+                          >
+                            {tag}
+                          </span>
+                        ))
+                      )}
+                    </div>
+                    
+                    {journal.dailySummary && (
+                      <div className={`mt-4 p-4 rounded-lg border-l-4 ${
+                        journal.dailySummary.isHiddenFromAI 
+                          ? 'bg-gray-100 border-gray-500' 
+                          : 'bg-gray-50 border-gray-400'
+                      }`}>
+                        <div className="flex justify-between items-start mb-3">
+                          <h4 className="text-sm font-medium text-paper text-elegant">
+                            Daily Summary
+                            {journal.dailySummary.isHiddenFromAI && (
+                              <span className="ml-2 paper-badge paper-badge-secondary">
+                                Hidden from AI
+                              </span>
+                            )}
+                          </h4>
+                          <button
+                            onClick={() => handleToggleHiddenFromAI(journal.dailySummary!.id, journal.dailySummary!.isHiddenFromAI)}
+                            className={`text-sm px-3 py-1.5 rounded-lg transition-colors ${
+                              journal.dailySummary!.isHiddenFromAI
+                                ? 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            } text-elegant`}
+                            title={journal.dailySummary!.isHiddenFromAI ? 'Show to AI' : 'Hide from AI'}
+                          >
+                            {journal.dailySummary!.isHiddenFromAI ? 'Show to AI' : 'Hide from AI'}
+                          </button>
+                        </div>
+                        <p className="text-sm text-paper-secondary text-elegant leading-relaxed">{journal.dailySummary.content}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         ) : selectedView === 'reflections' ? (
           <div className="space-y-6">
             {readingReflections.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-gray-500 text-elegant">No reading reflections yet. Generate reflections from your reading sessions!</p>
+              <div className="paper-empty">
+                <div className="paper-empty-icon">
+                  <BookOpen className="h-12 w-12 text-gray-400" />
+                </div>
+                <div className="paper-empty-title text-elegant">No reading reflections yet</div>
+                <div className="paper-empty-description text-elegant">Generate reflections from your reading sessions!</div>
               </div>
             ) : (
               readingReflections.map((reflection) => (
-                <div key={reflection.id} className="paper-card">
-                  <div className="mb-4">
+                <div key={reflection.id} className="paper-card paper-spacing-md">
+                  <div className="mb-6">
                     <div className="flex items-start justify-between">
-                      <div>
+                      <div className="flex-1">
                         <h3 className="card-title text-elegant mb-2">
                           Reading Reflection
                         </h3>
-                        <p className="text-sm text-gray-500 text-elegant">
-                          Document: {(reflection.reading as any).decryptedTitle} • 
-                          {new Date(reflection.createdAt).toLocaleDateString()}
-                        </p>
+                        <div className="flex items-center gap-4 text-sm text-gray-500 text-elegant">
+                          <span>Document: {(reflection.reading as any).decryptedTitle}</span>
+                          <span>•</span>
+                          <span>{new Date(reflection.createdAt).toLocaleDateString()}</span>
+                        </div>
                       </div>
-                      <button
+                                                                    <button
                         onClick={() => handleDeleteReflection(reflection.id)}
                         disabled={deletingReflectionId === reflection.id}
-                        className="text-red-500 hover:text-red-700 transition-colors p-1 rounded disabled:opacity-50"
-                        title="Delete reflection"
+                        className="btn-danger-outline text-sm px-3 py-1.5 rounded-lg disabled:opacity-50"
                       >
                         {deletingReflectionId === reflection.id ? (
-                          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
+                          <span className="inline-flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> Deleting...</span>
                         ) : (
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
+                          'Delete'
                         )}
                       </button>
                     </div>
                   </div>
                   
                   {(reflection as any).decryptedData ? (
-                    <div className="space-y-6">
-                      {/* Display the full AI-generated content */}
-                      <div className="prose prose-sm max-w-none">
-                        <ReactMarkdown 
-                          remarkPlugins={[remarkGfm]}
-                          components={{
-                            h1: ({ children }) => <h1 className="text-xl font-bold mb-3 text-gray-900 font-serif">{children}</h1>,
-                            h2: ({ children }) => <h2 className="text-lg font-semibold mb-2 text-gray-900 font-serif">{children}</h2>,
-                            h3: ({ children }) => <h3 className="text-base font-medium mb-2 text-gray-900 font-serif">{children}</h3>,
-                            p: ({ children }) => <p className="mb-3 text-gray-700 leading-relaxed font-serif">{children}</p>,
-                            ul: ({ children }) => <ul className="mb-3 ml-6 list-disc text-gray-700">{children}</ul>,
-                            ol: ({ children }) => <ol className="mb-3 ml-6 list-decimal text-gray-700">{children}</ol>,
-                            li: ({ children }) => <li className="mb-1 font-serif">{children}</li>,
-                            blockquote: ({ children }) => <blockquote className="border-l-4 border-gray-300 pl-4 mb-3 italic text-gray-600 font-serif">{children}</blockquote>,
-                            code: ({ children }) => <code className="bg-gray-100 px-1 py-0.5 rounded text-sm font-mono">{children}</code>,
-                            pre: ({ children }) => <pre className="bg-gray-100 p-3 rounded mb-3 overflow-x-auto font-mono text-sm">{children}</pre>,
-                            strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
-                            em: ({ children }) => <em className="italic text-gray-800">{children}</em>
-                          }}
-                        >
-                          {(reflection as any).decryptedData.content}
-                        </ReactMarkdown>
-                      </div>
+                    <div className="space-y-8">
+                      {/* Prefer flashcard view if structured questions exist */}
+                      {((reflection as any).decryptedData.socraticQuestions?.length || (reflection as any).decryptedData.extensionQuestions?.length) ? (
+                        <div className="space-y-8">
+                          {(reflection as any).decryptedData.socraticQuestions?.length > 0 && (
+                            <div>
+                              <h4 className="text-lg font-semibold text-gray-900 mb-4 text-elegant">Socratic Questions</h4>
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {(reflection as any).decryptedData.socraticQuestions.map((q: string, idx: number) => (
+                                  <ReflectionAnswerCard
+                                    key={`soc-${reflection.id}-${idx}`}
+                                    kind="socratic"
+                                    index={idx}
+                                    question={q}
+                                    answer={(reflection as any).decryptedData.userAnswers?.socratic?.[idx] || ''}
+                                    onSave={async (value) => {
+                                      const target = readingReflections.find(r => r.id === reflection.id) as any
+                                      if (!target?.decryptedData) throw new Error('Missing reflection data')
+                                      const next = { ...target.decryptedData, userAnswers: { socratic: [...(target.decryptedData.userAnswers?.socratic || [])], task2: [...(target.decryptedData.userAnswers?.task2 || [])] } }
+                                      const arr = next.userAnswers.socratic
+                                      for (let i = arr.length; i <= idx; i++) arr[i] = ''
+                                      arr[idx] = value
+                                      const encryptedReflectionData = await encrypt(JSON.stringify(next))
+                                      const res = await fetch(`/api/reading/reflect/${reflection.id}`, {
+                                        method: 'PATCH',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ encryptedReflectionData })
+                                      })
+                                      if (!res.ok) throw new Error('Failed to save')
+                                      setReadingReflections(prev => prev.map(r => r.id === reflection.id ? ({ ...(r as any), decryptedData: next }) as any : r))
+                                    }}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {(reflection as any).decryptedData.extensionQuestions?.length > 0 && (
+                            <div>
+                              <h4 className="text-lg font-semibold text-gray-900 mb-4 text-elegant">
+                                {((reflection as any).decryptedData.metadata?.analysisType === 'cross-contextual') && 'Cross-Context Inspiration'}
+                                {((reflection as any).decryptedData.metadata?.analysisType === 'temporal-progression') && 'Temporal Progression'}
+                                {((reflection as any).decryptedData.metadata?.analysisType === 'beyond-the-reading') && 'Beyond the Reading'}
+                                {(!((reflection as any).decryptedData.metadata?.analysisType)) && 'Extension Questions'}
+                              </h4>
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {(reflection as any).decryptedData.extensionQuestions.map((q: string, idx: number) => (
+                                  <ReflectionAnswerCard
+                                    key={`ext-${reflection.id}-${idx}`}
+                                    kind="task2"
+                                    index={idx}
+                                    question={q}
+                                    answer={(reflection as any).decryptedData.userAnswers?.task2?.[idx] || ''}
+                                    onSave={async (value) => {
+                                      const target = readingReflections.find(r => r.id === reflection.id) as any
+                                      if (!target?.decryptedData) throw new Error('Missing reflection data')
+                                      const next = { ...target.decryptedData, userAnswers: { socratic: [...(target.decryptedData.userAnswers?.socratic || [])], task2: [...(target.decryptedData.userAnswers?.task2 || [])] } }
+                                      const arr = next.userAnswers.task2
+                                      for (let i = arr.length; i <= idx; i++) arr[i] = ''
+                                      arr[idx] = value
+                                      const encryptedReflectionData = await encrypt(JSON.stringify(next))
+                                      const res = await fetch(`/api/reading/reflect/${reflection.id}`, {
+                                        method: 'PATCH',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ encryptedReflectionData })
+                                      })
+                                      if (!res.ok) throw new Error('Failed to save')
+                                      setReadingReflections(prev => prev.map(r => r.id === reflection.id ? ({ ...(r as any), decryptedData: next }) as any : r))
+                                    }}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
                       
                       {/* Metadata */}
                       {(reflection as any).decryptedData.metadata && (
-                        <div className="border-t border-gray-200 pt-4">
-                                                  <div className="text-xs text-gray-500 space-y-1 text-elegant">
-                          <p>Reading sessions analyzed: {(reflection as any).decryptedData.metadata.readingLogs}</p>
-                          <p>Documents analyzed: {(reflection as any).decryptedData.metadata.documentsAnalyzed}</p>
-                          <p>Content chunks retrieved: {(reflection as any).decryptedData.metadata.retrievedChunks}</p>
-                        </div>
+                        <div className="border-t border-gray-200 pt-6">
+                          <div className="text-xs text-gray-500 space-y-1 text-elegant">
+                            <p>Reading sessions analyzed: {(reflection as any).decryptedData.metadata.readingLogs}</p>
+                            <p>Documents analyzed: {(reflection as any).decryptedData.metadata.documentsAnalyzed}</p>
+                            <p>Content chunks retrieved: {(reflection as any).decryptedData.metadata.retrievedChunks}</p>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -768,61 +1033,108 @@ export default function HistoryPage() {
         ) : selectedView === 'logs' ? (
           <div className="space-y-6">
             {readingLogs.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-gray-500 text-elegant">No reading logs yet. Start a reading session to see your logs here!</p>
+              <div className="paper-empty">
+                <div className="paper-empty-icon">
+                  <FileText className="h-12 w-12 text-gray-400" />
+                </div>
+                <div className="paper-empty-title text-elegant">No reading logs yet</div>
+                <div className="paper-empty-description text-elegant">Start a reading session to see your logs here!</div>
               </div>
             ) : (
               readingLogs.map((log) => (
-                <div key={log.id} className="paper-card">
-                  <div className="mb-4">
-                    <h3 className="card-title text-elegant mb-2">
-                      Reading Log
-                    </h3>
-                    <p className="text-sm text-gray-500 text-elegant">
-                      Document: {(log.reading as any).decryptedTitle} • 
-                      {log.sessionDate ? new Date(log.sessionDate + 'T00:00:00').toLocaleDateString() : 'N/A'}
-                    </p>
-                  </div>
-                  
-                  <div className="prose prose-sm max-w-none">
-                    <p className="text-gray-700 whitespace-pre-wrap text-elegant">
-                      {log.notes || 'No notes provided.'}
-                    </p>
-                  </div>
+                <div key={log.id} className="paper-card paper-spacing-md">
+                  {editingLogId === log.id ? (
+                    <ReadingLogEditCard
+                      log={log as DecryptedReadingLog}
+                      onSave={async (notes) => await handleEditLog(log.id, notes)}
+                      onCancel={() => setEditingLogId(null)}
+                    />
+                  ) : (
+                    <>
+                      <div className="mb-4">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <h3 className="card-title text-elegant mb-2">
+                              Reading Log
+                            </h3>
+                            <div className="flex items-center gap-4 text-sm text-gray-500 text-elegant">
+                              <span>Document: {(log.reading as any).decryptedTitle}</span>
+                              <span>•</span>
+                              <span>{log.sessionDate ? new Date(log.sessionDate + 'T00:00:00').toLocaleDateString() : 'N/A'}</span>
+                            </div>
+                          </div>
+                          <div className="flex space-x-2 ml-4">
+                            <button
+                              onClick={() => setEditingLogId(log.id)}
+                              className="text-sm px-3 py-1.5 rounded-lg transition-colors bg-gray-100 text-gray-700 hover:bg-gray-200 text-elegant"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteLog(log.id)}
+                              disabled={deletingLogId === log.id}
+                              className="btn-danger-outline text-sm px-3 py-1.5 rounded-lg disabled:opacity-50"
+                            >
+                              {deletingLogId === log.id ? (
+                                <span className="inline-flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> Deleting...</span>
+                              ) : (
+                                'Delete'
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="prose prose-sm max-w-none">
+                        <p className="text-gray-700 whitespace-pre-wrap text-elegant leading-relaxed">
+                          {log.notes || 'No notes provided.'}
+                        </p>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))
             )}
           </div>
         ) : selectedView === 'summaries' ? (
           <div className="space-y-8">
-            <div>
-              <h2 className="heading-secondary text-elegant">Hierarchical Summaries</h2>
-              <p className="text-body text-elegant mt-2">We turn your past entries into weekly, monthly, and yearly summaries, so the AI can better understand your journey and guide you forward. You control what&apos;s kept for context.</p>
+            <div className="paper-card paper-spacing-md bg-gray-50 border-gray-200">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Calendar className="h-4 w-4 text-gray-600" />
+                </div>
+                <div>
+                  <h2 className="heading-secondary text-elegant mb-2">Hierarchical Summaries</h2>
+                  <p className="text-body text-elegant text-gray-700">
+                    We turn your past entries into weekly, monthly, and yearly summaries, so the AI can better understand your journey and guide you forward. You control what&apos;s kept for context.
+                  </p>
+                </div>
+              </div>
             </div>
             
             {/* Weekly Summaries */}
             <div>
               <h3 className="text-xl font-semibold text-gray-900 text-elegant mb-4">Weekly Summaries</h3>
               {weeklySummaries.length === 0 ? (
-                <p className="text-gray-500 text-elegant">No weekly summaries yet.</p>
+                <div className="paper-empty">
+                  <div className="paper-empty-description text-elegant">No weekly summaries yet.</div>
+                </div>
               ) : (
                 <div className="space-y-4">
                   {weeklySummaries.map((summary) => (
-                    <div key={summary.id} className="paper-card">
-                      <div className="flex justify-between items-start mb-2">
+                    <div key={summary.id} className="paper-card paper-spacing-md">
+                      <div className="flex justify-between items-start mb-3">
                         <h4 className="font-medium text-gray-900 text-elegant">
-                          Week of {new Date(summary.startDate).toLocaleDateString()}
+                          Week of {new Date(summary.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                         </h4>
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => handleDeleteWeeklySummary(summary.id)}
-                            className="btn-danger-outline text-sm px-3 py-1"
-                          >
-                            Delete
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => handleDeleteWeeklySummary(summary.id)}
+                          className="btn-danger-outline text-sm px-3 py-1.5 rounded-lg"
+                        >
+                          Delete
+                        </button>
                       </div>
-                      <p className="text-gray-700 whitespace-pre-wrap text-elegant">{summary.content}</p>
+                      <p className="text-gray-700 whitespace-pre-wrap text-elegant leading-relaxed">{summary.content}</p>
                     </div>
                   ))}
                 </div>
@@ -833,25 +1145,25 @@ export default function HistoryPage() {
             <div>
               <h3 className="text-xl font-semibold text-gray-900 text-elegant mb-4">Monthly Summaries</h3>
               {monthlySummaries.length === 0 ? (
-                <p className="text-gray-500 text-elegant">No monthly summaries yet.</p>
+                <div className="paper-empty">
+                  <div className="paper-empty-description text-elegant">No monthly summaries yet.</div>
+                </div>
               ) : (
                 <div className="space-y-4">
                   {monthlySummaries.map((summary) => (
-                    <div key={summary.id} className="paper-card">
-                      <div className="flex justify-between items-start mb-2">
+                    <div key={summary.id} className="paper-card paper-spacing-md">
+                      <div className="flex justify-between items-start mb-3">
                         <h4 className="font-medium text-gray-900 text-elegant">
                           {new Date(summary.startDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                         </h4>
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => handleDeleteMonthlySummary(summary.id)}
-                            className="btn-danger-outline text-sm px-3 py-1"
-                          >
-                            Delete
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => handleDeleteMonthlySummary(summary.id)}
+                          className="btn-danger-outline text-sm px-3 py-1.5 rounded-lg"
+                        >
+                          Delete
+                        </button>
                       </div>
-                      <p className="text-gray-700 text-elegant">{summary.content}</p>
+                      <p className="text-gray-700 text-elegant leading-relaxed">{summary.content}</p>
                     </div>
                   ))}
                 </div>
@@ -862,25 +1174,25 @@ export default function HistoryPage() {
             <div>
               <h3 className="text-xl font-semibold text-gray-900 text-elegant mb-4">Yearly Summaries</h3>
               {yearlySummaries.length === 0 ? (
-                <p className="text-gray-500 text-elegant">No yearly summaries yet.</p>
+                <div className="paper-empty">
+                  <div className="paper-empty-description text-elegant">No yearly summaries yet.</div>
+                </div>
               ) : (
                 <div className="space-y-4">
                   {yearlySummaries.map((summary) => (
-                    <div key={summary.id} className="paper-card">
-                      <div className="flex justify-between items-start mb-2">
+                    <div key={summary.id} className="paper-card paper-spacing-md">
+                      <div className="flex justify-between items-start mb-3">
                         <h4 className="font-medium text-gray-900 text-elegant">
                           {new Date(summary.startDate).getFullYear()}
                         </h4>
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => handleDeleteYearlySummary(summary.id)}
-                            className="btn-danger-outline text-sm px-3 py-1"
-                          >
-                            Delete
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => handleDeleteYearlySummary(summary.id)}
+                          className="btn-danger-outline text-sm px-3 py-1.5 rounded-lg"
+                        >
+                          Delete
+                        </button>
                       </div>
-                      <p className="text-gray-700 text-elegant">{summary.content}</p>
+                      <p className="text-gray-700 text-elegant leading-relaxed">{summary.content}</p>
                     </div>
                   ))}
                 </div>
@@ -888,8 +1200,8 @@ export default function HistoryPage() {
             </div>
           </div>
         ) : (
-          <div className="text-center py-12">
-            <p className="text-gray-500 text-elegant">Invalid view selected.</p>
+          <div className="paper-empty">
+            <div className="paper-empty-description text-elegant">Invalid view selected.</div>
           </div>
         )}
 
@@ -900,12 +1212,12 @@ export default function HistoryPage() {
               <h3 className="text-lg font-semibold text-gray-900 mb-3 text-elegant">
                 7-Day Cooling Period Active
               </h3>
-              <p className="text-gray-700 mb-4 text-elegant">
+              <p className="text-gray-700 mb-4 text-elegant leading-relaxed">
                 {coolingPeriodMessage}
               </p>
               <button
                 onClick={() => setShowCoolingPeriodMessage(false)}
-                className="w-full bg-gray-900 text-white py-2 px-4 rounded hover:bg-gray-800 transition-colors"
+                className="w-full bg-gray-900 text-white py-2 px-4 rounded hover:bg-gray-800 transition-colors text-elegant"
               >
                 I Understand
               </button>

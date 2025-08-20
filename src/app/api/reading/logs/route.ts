@@ -131,3 +131,131 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const logId = searchParams.get('id')
+
+    if (!logId) {
+      return NextResponse.json({ error: 'Log ID is required' }, { status: 400 })
+    }
+
+    // Verify that the reading log belongs to the current user
+    const readingLog = await prisma.readingLog.findFirst({
+      where: {
+        id: logId,
+        reading: {
+          userId: session.user.id
+        }
+      }
+    })
+
+    if (!readingLog) {
+      return NextResponse.json({ error: 'Reading log not found' }, { status: 404 })
+    }
+
+    // Delete the reading log
+    await prisma.readingLog.delete({
+      where: { id: logId }
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Failed to delete reading log:', error)
+    return NextResponse.json(
+      { error: 'Failed to delete reading log' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const logId = searchParams.get('id')
+
+    if (!logId) {
+      return NextResponse.json({ error: 'Log ID is required' }, { status: 400 })
+    }
+
+    const { encryptedData, notes } = await request.json()
+
+    // Verify that the reading log belongs to the current user
+    const readingLog = await prisma.readingLog.findFirst({
+      where: {
+        id: logId,
+        reading: {
+          userId: session.user.id
+        }
+      }
+    })
+
+    if (!readingLog) {
+      return NextResponse.json({ error: 'Reading log not found' }, { status: 404 })
+    }
+
+    // Validate encrypted data if provided
+    if (encryptedData) {
+      if (!validateEncryptedData(encryptedData.startPage) ||
+          !validateEncryptedData(encryptedData.endPage) ||
+          !validateEncryptedData(encryptedData.sessionDate)) {
+        return NextResponse.json(
+          { error: 'Invalid encrypted data format. All fields (startPage, endPage, sessionDate) must be properly encrypted.' },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Validate encrypted notes if provided
+    if (notes && !validateEncryptedData(notes)) {
+      return NextResponse.json(
+        { error: 'Invalid encrypted notes format' },
+        { status: 400 }
+      )
+    }
+
+    // Update the reading log
+    const updateData: any = {}
+    
+    if (encryptedData) {
+      updateData.startPage = serializeEncryptedData(encryptedData.startPage)
+      updateData.endPage = serializeEncryptedData(encryptedData.endPage)
+      updateData.sessionDate = serializeEncryptedData(encryptedData.sessionDate)
+    }
+    
+    if (notes !== undefined) {
+      updateData.notes = notes ? serializeEncryptedData(notes) : null
+    }
+
+    const updatedReadingLog = await prisma.readingLog.update({
+      where: { id: logId },
+      data: updateData
+    })
+
+    return NextResponse.json({ 
+      success: true,
+      readingLog: {
+        id: updatedReadingLog.id,
+        readingId: updatedReadingLog.readingId,
+        createdAt: updatedReadingLog.createdAt
+      }
+    })
+  } catch (error) {
+    console.error('Failed to update reading log:', error)
+    return NextResponse.json(
+      { error: 'Failed to update reading log' },
+      { status: 500 }
+    )
+  }
+}

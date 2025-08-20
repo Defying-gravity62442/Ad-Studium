@@ -74,19 +74,6 @@ export function calculateUniquePages(readings: ReadingLog[]): number {
 }
 
 /**
- * Calculate unique pages read per document
- */
-export function calculateUniquePagesPerDocument(
-  documents: Array<{ docToken: string; title: string; readingLogs: ReadingLog[] }>
-): Array<{ docToken: string; title: string; pages: number }> {
-  return documents.map(doc => ({
-    docToken: doc.docToken,
-    title: doc.title,
-    pages: calculateUniquePages(doc.readingLogs)
-  })).sort((a, b) => b.pages - a.pages)
-}
-
-/**
  * Calculate reading progress percentage for a document
  */
 export function calculateReadingProgress(

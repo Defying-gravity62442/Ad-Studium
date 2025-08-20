@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useE2EE } from '@/hooks/useE2EE'
-import { Button, Input } from '@/components/ui'
+import { Button } from '@/components/ui'
 
 interface LetterFormProps {
   onSuccess: () => void
@@ -84,66 +84,71 @@ export function LetterForm({ onSuccess, onCancel }: LetterFormProps) {
   }
 
   return (
-    <div className="letter-modal-container">
-      {/* Letter Paper Background */}
-      <div className="letter-paper">
-        {/* Letterhead */}
-        <div className="letter-header">
-          <div className="flex items-center justify-between mb-8">
-            <div className="letter-heading">
-              <h2 className="letter-title">
-                Letter to Future Self
-              </h2>
-              <div className="letter-date">
-                {new Date().toLocaleDateString('en-US', { 
-                  weekday: 'long', 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
-                })}
-              </div>
-            </div>
-            <Button
-              onClick={onCancel}
-              className="letter-close-btn"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </Button>
-          </div>
-        </div>
+    <div className="letter-writing-container">
+      {/* Close button - positioned outside the paper */}
+      <button
+        onClick={onCancel}
+        className="letter-close-button"
+        aria-label="Close letter"
+      >
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
 
-        {/* Letter Body */}
-        <div className="letter-body">
-          {error && (
-            <div className="letter-error">
-              <div className="flex items-center text-red-600">
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span className="text-sm">{error}</span>
+      {/* The Letter Paper */}
+      <div className="letter-paper-sheet">
+        {/* Paper texture overlay */}
+        <div className="paper-texture-overlay"></div>
+        
+        {/* Letter Content */}
+        <div className="letter-content-wrapper">
+          {/* Letter Header */}
+          <div className="letter-header-section">
+            <div className="letter-date-line">
+              {new Date().toLocaleDateString('en-US', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+              })}
+            </div>
+            
+            {formData.title && (
+              <div className="letter-subject-line">
+                Subject: {formData.title}
               </div>
+            )}
+          </div>
+
+          {/* Error Display */}
+          {error && (
+            <div className="letter-error-message">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>{error}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="letter-form">
-            {/* Letter Title */}
-            <div className="letter-field">
-              <label className="letter-label">Subject:</label>
+          {/* Letter Form */}
+          <form onSubmit={handleSubmit} className="letter-form-content">
+            {/* Title Field */}
+            <div className="letter-field-group">
+              <label className="letter-field-label">Subject (optional):</label>
               <input
                 type="text"
                 value={formData.title}
                 onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
                 placeholder="A meaningful title for your letter..."
-                className="letter-input"
+                className="letter-title-input"
               />
             </div>
 
-            {/* Unseal Date */}
-            <div className="letter-field">
-              <label className="letter-label">
-                To be opened on: <span className="text-red-500">*</span>
+            {/* Unseal Date Field */}
+            <div className="letter-field-group">
+              <label className="letter-field-label">
+                To be opened on: <span className="required-mark">*</span>
               </label>
               <input
                 type="date"
@@ -151,16 +156,17 @@ export function LetterForm({ onSuccess, onCancel }: LetterFormProps) {
                 onChange={(e) => setFormData(prev => ({ ...prev, unsealDate: e.target.value }))}
                 min={getTomorrowDate()}
                 required
-                className="letter-input"
+                className="letter-date-input"
               />
-              <p className="letter-note">
+              <p className="letter-field-note">
                 Choose when you want to receive and read this letter. Once sealed, you cannot edit or delete it until this date.
               </p>
             </div>
 
-            {/* Letter Content */}
-            <div className="letter-content-field">
+            {/* Letter Body */}
+            <div className="letter-body-section">
               <div className="letter-greeting">Dear Future Me,</div>
+              
               <textarea
                 value={formData.content}
                 onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
@@ -170,26 +176,27 @@ This is your time capsule - write from your heart about where you are right now,
 
 Take your time and let your thoughts flow naturally onto this page."
                 required
-                rows={18}
-                className="letter-textarea"
+                rows={20}
+                className="letter-content-textarea"
               />
-              <div className="letter-signature">
-                <div className="letter-signature-line">
+              
+              <div className="letter-signature-section">
+                <div className="letter-signature-text">
                   With hope and anticipation,
                   <br />
-                  <span className="letter-signature-name">Your Past Self</span>
+                  <span className="signature-name">Your Past Self</span>
                 </div>
               </div>
             </div>
 
             {/* Sealing Information */}
-            <div className="letter-seal-info">
-              <div className="letter-seal-icon">
+            <div className="letter-seal-section">
+              <div className="seal-icon">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
               </div>
-              <div className="letter-seal-text">
+              <div className="seal-info">
                 <h4>Time Capsule Security</h4>
                 <ul>
                   <li>• Letter will be encrypted and sealed until the chosen date</li>
@@ -201,22 +208,22 @@ Take your time and let your thoughts flow naturally onto this page."
             </div>
 
             {/* Action Buttons */}
-            <div className="letter-actions">
+            <div className="letter-actions-section">
               <button
                 type="button"
                 onClick={onCancel}
                 disabled={loading}
-                className="letter-btn letter-btn-cancel"
+                className="letter-action-btn letter-cancel-btn"
               >
-                Discard
+                Discard Letter
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="letter-btn letter-btn-seal"
+                className="letter-action-btn letter-seal-btn"
               >
                 {loading ? (
-                  <div className="flex items-center">
+                  <div className="btn-content">
                     <svg className="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -224,7 +231,7 @@ Take your time and let your thoughts flow naturally onto this page."
                     Sealing Letter...
                   </div>
                 ) : (
-                  <div className="flex items-center">
+                  <div className="btn-content">
                     <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                     </svg>

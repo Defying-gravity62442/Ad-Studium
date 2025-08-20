@@ -17,6 +17,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "googleapis": "^154.1.0",
+    "katex": "^0.16.22",
     "lucide-react": "^0.535.0",
     "next": "15.4.5",
     "next-auth": "^4.24.11",
@@ -26,7 +27,9 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-markdown": "^10.1.0",
+    "rehype-katex": "^7.0.1",
     "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
     "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {

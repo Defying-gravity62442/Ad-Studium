@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useE2EE } from '@/hooks/useE2EE'
-import { calculateUniquePages, calculateUniquePagesPerDocument, calculateReadingProgress } from '@/lib/utils/reading-progress'
-import { CountUp, AnimatedProgressBar, StaggeredItem, Skeleton } from '@/components/ui'
+import { calculateUniquePages, calculateReadingProgress } from '@/lib/utils/reading-progress'
+import { CountUp, AnimatedProgressBar } from '@/components/ui'
 
 // Import test function for debugging
 import { runTests } from '@/lib/utils/reading-progress.test'
