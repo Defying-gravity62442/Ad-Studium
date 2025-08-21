@@ -63,7 +63,7 @@ export function useCalendarSync(): UseCalendarSyncReturn {
           throw new Error('Calendar access not granted. Please sign in again.')
         }
         if (response.status === 403) {
-          throw new Error('Calendar integration not enabled. Please enable calendar integration in your settings.')
+          throw new Error('Calendar events permission not enabled. Please enable calendar events access in your settings.')
         }
         throw new Error('Failed to fetch calendars')
       }
@@ -109,7 +109,7 @@ export function useCalendarSync(): UseCalendarSyncReturn {
           throw new Error('Calendar access not granted. Please sign in again.')
         }
         if (response.status === 403) {
-          throw new Error('Calendar integration not enabled. Please enable calendar integration in your settings.')
+          throw new Error('Calendar events permission not enabled. Please enable calendar events access in your settings.')
         }
         throw new Error('Failed to sync milestones')
       }

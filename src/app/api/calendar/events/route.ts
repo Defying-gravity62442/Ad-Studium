@@ -11,15 +11,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user has calendar integration enabled
+    // Check if user has calendar read permission
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { calendarIntegrationEnabled: true }
+      select: { calendarReadPermission: true }
     })
 
-    if (!user?.calendarIntegrationEnabled) {
+    if (!user?.calendarReadPermission) {
       return NextResponse.json({ 
-        error: 'Calendar integration not enabled. Please enable calendar integration in your settings.' 
+        error: 'Calendar read permission not enabled. Please enable calendar read access in your settings.' 
       }, { status: 403 })
     }
 

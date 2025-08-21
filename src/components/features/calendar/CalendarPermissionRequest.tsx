@@ -1,39 +1,74 @@
-'use client'
+"use client"
 
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
 import { Modal } from '@/components/ui/modal'
+import { Button } from '@/components/ui/button'
 
 interface CalendarPermissionRequestProps {
   onPermissionGranted?: () => void
   onCancel?: () => void
   title?: string
   description?: string
+  showPermissionOptions?: boolean
 }
 
 export function CalendarPermissionRequest({ 
   onPermissionGranted, 
   onCancel,
   title = "Enable Google Calendar Integration",
-  description = "To sync your milestones and provide AI context, we need access to your Google Calendar."
+  description = "Choose what calendar permissions you'd like to enable:",
+  showPermissionOptions = true
 }: CalendarPermissionRequestProps) {
   const [isRequesting, setIsRequesting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selectedPermissions, setSelectedPermissions] = useState<{
+    readonly: boolean
+    events: boolean
+  }>({
+    readonly: false,
+    events: false
+  })
 
   const handleCancel = () => {
     onCancel?.()
   }
 
+  const handlePermissionChange = (permission: 'readonly' | 'events', checked: boolean) => {
+    setSelectedPermissions(prev => ({
+      ...prev,
+      [permission]: checked
+    }))
+  }
+
   const handleRequestPermission = async () => {
+    if (showPermissionOptions && !selectedPermissions.readonly && !selectedPermissions.events) {
+      setError('Please select at least one permission type.')
+      return
+    }
+
     setIsRequesting(true)
     setError(null)
 
     try {
+      // Determine the scope to request
+      let scope = 'events' // default to events permission
+      if (showPermissionOptions) {
+        if (selectedPermissions.readonly && !selectedPermissions.events) {
+          scope = 'readonly'
+        } else if (selectedPermissions.events) {
+          scope = 'events'
+        }
+      } else {
+        // When showPermissionOptions is false, default to events permission for milestone syncing
+        scope = 'events'
+      }
+
       const response = await fetch('/api/user/request-calendar-permissions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ scope })
       })
 
       if (!response.ok) {
@@ -57,7 +92,7 @@ export function CalendarPermissionRequest({
   }
 
   return (
-    <Modal isOpen={true} onClose={handleCancel} maxWidth="md" showCloseButton={false}>
+    <Modal isOpen={true} onClose={handleCancel} maxWidth="md">
       <div className="p-6">
         <div className="text-center">
           <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-gray-100 mb-4">
@@ -74,6 +109,48 @@ export function CalendarPermissionRequest({
             {description}
           </p>
 
+          {showPermissionOptions && (
+            <div className="mb-6 text-left">
+              <div className="space-y-4">
+                <div className="flex items-start space-x-3">
+                  <input
+                    type="checkbox"
+                    id="readonly-permission"
+                    checked={selectedPermissions.readonly}
+                    onChange={(e) => handlePermissionChange('readonly', e.target.checked)}
+                    className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <div>
+                    <label htmlFor="readonly-permission" className="text-sm font-medium text-gray-900">
+                      Read Calendar Events
+                    </label>
+                    <p className="text-xs text-gray-600 mt-1">
+                      Allow AI to read your calendar events to provide better context and assistance in your journal entries and AI conversations.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-3">
+                  <input
+                    type="checkbox"
+                    id="events-permission"
+                    checked={selectedPermissions.events}
+                    onChange={(e) => handlePermissionChange('events', e.target.checked)}
+                    className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <div>
+                    <label htmlFor="events-permission" className="text-sm font-medium text-gray-900">
+                      Create Calendar Events
+                    </label>
+                    <p className="text-xs text-gray-600 mt-1">
+                      Allow syncing your roadmap milestones to your Google Calendar as events with due dates.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
               <p className="text-sm text-red-600">{error}</p>
@@ -83,10 +160,10 @@ export function CalendarPermissionRequest({
           <div className="flex space-x-3">
             <Button
               onClick={handleRequestPermission}
-              disabled={isRequesting}
+              disabled={isRequesting || (showPermissionOptions && !selectedPermissions.readonly && !selectedPermissions.events)}
               className="flex-1 btn-primary"
             >
-              {isRequesting ? 'Requesting...' : 'Enable Calendar'}
+              {isRequesting ? 'Requesting...' : (showPermissionOptions ? 'Enable Selected Permissions' : 'Enable Calendar Events')}
             </Button>
             
             {onCancel && (
@@ -102,7 +179,7 @@ export function CalendarPermissionRequest({
           </div>
 
           <p className="text-xs text-gray-500 mt-4">
-            You can change this setting later in your account preferences.
+            You can change these permissions later in your account settings.
           </p>
         </div>
       </div>

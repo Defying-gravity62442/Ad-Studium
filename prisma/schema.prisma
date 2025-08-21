@@ -45,7 +45,8 @@ model User {
   encryptionKey              String?
   hasCompletedOnboarding     Boolean              @default(false)
   timezone                   String?              @default("UTC")
-  calendarIntegrationEnabled Boolean              @default(false)
+  calendarReadPermission     Boolean              @default(false)
+  calendarEventsPermission   Boolean              @default(false)
   currentInstitution         String?
   fieldsOfStudy              String?
   background                 String?

@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import { useE2EE } from '@/hooks/useE2EE'
-import { CalendarPermissionRequest } from '@/components/features/calendar/CalendarPermissionRequest'
+
 import { TutorialButton } from '@/components/tutorial'
 import { TIMEZONE_OPTIONS } from '@/lib/utils/timezone'
 
@@ -143,8 +143,9 @@ function SettingsContent() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const [showCalendarPermissionRequest, setShowCalendarPermissionRequest] = useState(false)
-  const [calendarIntegrationEnabled, setCalendarIntegrationEnabled] = useState(false)
+
+  const [calendarReadPermission, setCalendarReadPermission] = useState(false)
+  const [calendarEventsPermission, setCalendarEventsPermission] = useState(false)
   
   // Customization state
   const [customization, setCustomization] = useState<CustomizationData>({
@@ -159,6 +160,9 @@ function SettingsContent() {
   const { data: session } = useSession()
   const { decrypt, encrypt, isReady, hasKey, error: e2eeError } = useE2EE()
 
+  // Note: This helper function is no longer used in the new UI design
+  // const isCalendarIntegrationEnabled = calendarReadPermission || calendarEventsPermission
+
   // Handle URL parameters for success/error messages
   useEffect(() => {
     const successParam = searchParams.get('success')
@@ -166,7 +170,6 @@ function SettingsContent() {
     
     if (successParam === 'calendar_permissions_granted') {
       setSuccess('Calendar integration enabled successfully! You can now sync your milestones to Google Calendar.')
-      setCalendarIntegrationEnabled(true)
     } else if (errorParam === 'calendar_permission_denied') {
       setError('Calendar permission was denied. You can try again later.')
     } else if (errorParam === 'no_authorization_code') {
@@ -211,7 +214,15 @@ function SettingsContent() {
 
         if (onboardingResponse.ok) {
           const data = await onboardingResponse.json()
-          setCalendarIntegrationEnabled(data.user.calendarIntegrationEnabled || false)
+          // Note: calendarIntegrationEnabled is no longer used, permissions are loaded separately
+        }
+
+        // Load calendar permissions
+        const calendarPermissionsResponse = await fetch('/api/user/calendar-permissions')
+        if (calendarPermissionsResponse.ok) {
+          const calendarData = await calendarPermissionsResponse.json()
+          setCalendarReadPermission(calendarData.calendarReadPermission || false)
+          setCalendarEventsPermission(calendarData.calendarEventsPermission || false)
         }
 
         if (timezoneResponse.ok) {
@@ -237,10 +248,10 @@ function SettingsContent() {
       const timer = setTimeout(async () => {
         try {
           const response = await fetch('/api/user/onboarding-status')
-          if (response.ok) {
-            const data = await response.json()
-            setCalendarIntegrationEnabled(data.user.calendarIntegrationEnabled || false)
-          }
+                  if (response.ok) {
+          const data = await response.json()
+          // Note: calendarIntegrationEnabled is no longer used
+        }
         } catch (err) {
           console.error('Error reloading calendar status:', err)
         }
@@ -302,34 +313,97 @@ function SettingsContent() {
     }
   }
 
-  const handleCalendarPermissionGranted = () => {
-    setShowCalendarPermissionRequest(false)
-    setCalendarIntegrationEnabled(true)
-    setSuccess('Calendar integration enabled successfully')
+
+
+  const handleEnableCalendarPermission = async (permission: 'read' | 'events') => {
+    const permissionName = permission === 'read' ? 'Read Calendar Events' : 'Create Calendar Events'
+    
+    try {
+      const response = await fetch('/api/user/request-calendar-permissions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ scope: permission === 'read' ? 'readonly' : permission })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success && data.authUrl) {
+          // Redirect to Google OAuth for calendar permissions
+          window.location.href = data.authUrl
+        } else {
+          throw new Error('Invalid response from server')
+        }
+      } else {
+        const data = await response.json()
+        setError(data.error || `Failed to enable ${permissionName}`)
+      }
+    } catch (err) {
+      console.error(`Error enabling ${permissionName}:`, err)
+      setError(`Failed to enable ${permissionName}`)
+    }
   }
 
-  const handleDisableCalendarIntegration = async () => {
-    if (!window.confirm('Are you sure you want to disable calendar integration? This will remove access to your Google Calendar.')) {
+  const handleDisableCalendarPermission = async (permission: 'read' | 'events') => {
+    const permissionName = permission === 'read' ? 'Read Calendar Events' : 'Create Calendar Events'
+    
+    if (!window.confirm(`Are you sure you want to disable ${permissionName}? This will stop Ad Studium from using this permission, but you'll need to visit Google Account settings to completely revoke access.`)) {
       return
     }
 
     try {
-      const response = await fetch('/api/user/request-calendar-permissions', {
-        method: 'DELETE'
+      const response = await fetch('/api/user/calendar-permissions', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ permission, enabled: false })
       })
 
       if (response.ok) {
-        setCalendarIntegrationEnabled(false)
-        setSuccess('Calendar integration disabled successfully')
+        // Update the local state
+        if (permission === 'read') {
+          setCalendarReadPermission(false)
+        } else {
+          setCalendarEventsPermission(false)
+        }
+        
+        setSuccess(`${permissionName} disabled successfully`)
       } else {
         const data = await response.json()
-        setError(data.error || 'Failed to disable calendar integration')
+        setError(data.error || `Failed to disable ${permissionName}`)
       }
     } catch (err) {
-      console.error('Error disabling calendar integration:', err)
-      setError('Failed to disable calendar integration')
+      console.error(`Error disabling ${permissionName}:`, err)
+      setError(`Failed to disable ${permissionName}`)
     }
   }
+
+  // Note: This function is no longer used in the new UI design
+  // const handleDisableCalendarIntegration = async () => {
+  //   if (!window.confirm('Are you sure you want to disable all calendar permissions? This will stop Ad Studium from using any calendar features, but you\'ll need to visit Google Account settings to completely revoke access.')) {
+  //     return
+  //   }
+
+  //   try {
+  //     const response = await fetch('/api/user/request-calendar-permissions', {
+  //       method: 'DELETE'
+  //     })
+
+  //     if (response.ok) {
+  //       setCalendarReadPermission(false)
+  //       setCalendarEventsPermission(false)
+  //       setSuccess('All calendar permissions disabled successfully')
+  //     } else {
+  //       const data = await response.json()
+  //       setError(data.error || 'Failed to disable calendar permissions')
+  //     }
+  //   } catch (err) {
+  //     console.error('Error disabling calendar permissions:', err)
+  //     setError('Failed to disable calendar permissions')
+  //   }
+  // }
 
   const handleExportData = async () => {
     setIsExporting(true)
@@ -629,7 +703,7 @@ function SettingsContent() {
                   value={customization.fieldsOfStudy}
                   onChange={(e) => setCustomization(prev => ({ ...prev, fieldsOfStudy: e.target.value }))}
                   placeholder="e.g., Computer Science, Machine Learning, Natural Language Processing"
-                  rows={3}
+                  rows={1}
                   className="w-full paper-textarea"
                 />
               </div>
@@ -739,58 +813,135 @@ function SettingsContent() {
         {activeTab === 'calendar' && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-2xl font-bold text-black mb-4">Google Calendar Integration</h2>
+              <h2 className="text-2xl font-bold text-black mb-4">Calendar Integration</h2>
               <p className="text-gray-600 mb-6">
-                Manage your Google Calendar integration settings. When enabled, you can sync milestones to your calendar and provide calendar context to AI features.
+                Connect your Google Calendar to sync milestones and provide AI with context about your schedule. 
+                Choose the permissions that work best for your workflow.
               </p>
             </div>
 
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="font-medium text-gray-900">Calendar Integration Status</h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {calendarIntegrationEnabled 
-                      ? 'Calendar integration is currently enabled'
-                      : 'Calendar integration is currently disabled'
+            {/* Permission Cards */}
+            <div className="space-y-6">
+              <h3 className="text-xl font-semibold text-black">Manage Permissions</h3>
+              
+              {/* Read Calendar Events Card */}
+              <div className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-start space-x-4">
+                    <div>
+                      <h4 className="text-lg font-semibold text-black mb-1">Read Calendar Events</h4>
+                      <p className="text-gray-600 text-sm leading-relaxed">
+                        Allows AI to read your calendar events to provide better context in journal entries and conversations. 
+                        This helps create more relevant and timely responses.
+                      </p>
+                    </div>
+                  </div>
+                  <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                    calendarReadPermission
+                      ? 'bg-black text-white'
+                      : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    {calendarReadPermission ? 'Enabled' : 'Disabled'}
+                  </div>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <div className="text-xs text-gray-500">
+                    {calendarReadPermission 
+                      ? 'AI can now access your calendar for context' 
+                      : 'Enable to improve AI conversation quality'
                     }
-                  </p>
-                </div>
-                <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  calendarIntegrationEnabled
-                    ? 'bg-green-100 text-green-800'
-                    : 'bg-gray-100 text-gray-800'
-                }`}>
-                  {calendarIntegrationEnabled ? 'Enabled' : 'Disabled'}
+                  </div>
+                  <div className="flex space-x-3">
+                    {calendarReadPermission ? (
+                      <button
+                        onClick={() => handleDisableCalendarPermission('read')}
+                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors"
+                      >
+                        Disable
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleEnableCalendarPermission('read')}
+                        className="px-4 py-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-gray-800 transition-colors"
+                      >
+                        Enable
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <h4 className="font-medium text-gray-900">What calendar integration enables:</h4>
-                <ul className="text-sm text-gray-600 space-y-2">
-                  <li>• Sync milestones to your Google Calendar</li>
-                  <li>• Read your calendar events for better AI assistance</li>
-                </ul>
-              </div>
-
-              <div className="mt-6">
-                {calendarIntegrationEnabled ? (
-                  <button
-                    onClick={handleDisableCalendarIntegration}
-                    className="btn-danger-outline"
-                  >
-                    Disable Calendar Integration
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => setShowCalendarPermissionRequest(true)}
-                    className="btn-primary"
-                  >
-                    Enable Calendar Integration
-                  </button>
-                )}
+              {/* Create Calendar Events Card */}
+              <div className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-start space-x-4">
+                    <div>
+                      <h4 className="text-lg font-semibold text-black mb-1">Create Calendar Events</h4>
+                      <p className="text-gray-600 text-sm leading-relaxed">
+                        Sync your roadmap milestones to Google Calendar as events with due dates. 
+                        Keep your academic goals visible and trackable in your daily schedule.
+                      </p>
+                    </div>
+                  </div>
+                  <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                    calendarEventsPermission
+                      ? 'bg-black text-white'
+                      : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    {calendarEventsPermission ? 'Enabled' : 'Disabled'}
+                  </div>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <div className="text-xs text-gray-500">
+                    {calendarEventsPermission 
+                      ? 'Milestones will sync to your Google Calendar' 
+                      : 'Enable to sync roadmap milestones to calendar'
+                    }
+                  </div>
+                  <div className="flex space-x-3">
+                    {calendarEventsPermission ? (
+                      <button
+                        onClick={() => handleDisableCalendarPermission('events')}
+                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors"
+                      >
+                        Disable
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleEnableCalendarPermission('events')}
+                        className="px-4 py-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-gray-800 transition-colors"
+                      >
+                        Enable
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
+
+            {/* Privacy & Security */}
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <h4 className="text-lg font-semibold text-black">Warning</h4>
+              </div>
+              <div className="space-y-2 text-sm text-gray-600">
+                <p className="text-black font-medium">
+                Calendar integration starts off disabled. If you have granted the app access to your Google Calendar, disabling it in the app stops calendar-based features, but does not remove the app&apos;s Google Calendar access. To fully revoke access, visit your{' '}
+                  <a 
+                    href="https://myaccount.google.com/permissions" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="underline hover:text-gray-800"
+                  >
+                    Google Account settings
+                  </a>
+                  .
+                </p>
+              </div>
+            </div>
+
           </div>
         )}
 
@@ -928,15 +1079,7 @@ function SettingsContent() {
         )}
       </div>
 
-      {/* Calendar Permission Request Modal */}
-      {showCalendarPermissionRequest && (
-        <CalendarPermissionRequest
-          onPermissionGranted={handleCalendarPermissionGranted}
-          onCancel={() => setShowCalendarPermissionRequest(false)}
-          title="Enable Google Calendar Integration"
-          description="To sync your milestones and provide AI context, we need access to your Google Calendar."
-        />
-      )}
+
     </div>
   )
 }

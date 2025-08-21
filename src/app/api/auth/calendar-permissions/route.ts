@@ -26,6 +26,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('/settings?error=no_session', request.url))
     }
 
+    // Parse the state parameter to get the requested scope
+    let requestedScope = 'events' // default fallback
+    if (state) {
+      try {
+        const stateData = JSON.parse(decodeURIComponent(state))
+        requestedScope = stateData.scope || 'events'
+      } catch (error) {
+        console.error('Failed to parse state parameter:', error)
+      }
+    }
+
     // Exchange the authorization code for an access token
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
@@ -54,13 +65,32 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Update the user's calendar integration status
-    await prisma.user.update({
+    // Get current permissions to preserve existing state
+    const currentUser = await prisma.user.findUnique({
       where: { id: session.user.id },
-      data: { calendarIntegrationEnabled: true }
+      select: {
+        calendarReadPermission: true,
+        calendarEventsPermission: true
+      }
     })
 
-    console.log('Successfully updated calendar permissions for user:', session.user.id)
+    // Update the user's calendar permissions based on the requested scope, preserving existing permissions
+    const updateData: any = {}
+    
+    if (requestedScope === 'readonly') {
+      updateData.calendarReadPermission = true
+      updateData.calendarEventsPermission = currentUser?.calendarEventsPermission ?? false
+    } else if (requestedScope === 'events') {
+      updateData.calendarEventsPermission = true
+      updateData.calendarReadPermission = currentUser?.calendarReadPermission ?? false
+    }
+
+    await prisma.user.update({
+      where: { id: session.user.id },
+      data: updateData
+    })
+
+    console.log('Successfully updated calendar permissions for user:', session.user.id, 'with scope:', requestedScope)
 
     // Redirect back to settings with success message
     return NextResponse.redirect(new URL('/settings?success=calendar_permissions_granted', request.url))

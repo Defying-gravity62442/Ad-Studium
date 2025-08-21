@@ -11,15 +11,15 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user has calendar integration enabled
+    // Check if user has calendar events permission (needed to write to calendars)
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { calendarIntegrationEnabled: true }
+      select: { calendarEventsPermission: true }
     })
 
-    if (!user?.calendarIntegrationEnabled) {
+    if (!user?.calendarEventsPermission) {
       return NextResponse.json({ 
-        error: 'Calendar integration not enabled. Please enable calendar integration in your settings.' 
+        error: 'Calendar events permission not enabled. Please enable calendar events access in your settings.' 
       }, { status: 403 })
     }
 

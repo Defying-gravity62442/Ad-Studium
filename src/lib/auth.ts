@@ -79,11 +79,14 @@ export const authOptions: NextAuthOptions = {
             token.refreshToken = dbAccount.refresh_token || token.refreshToken
             
             // Check if the token has calendar scopes
-            const hasCalendarScopes = dbAccount.scope?.includes('calendar.readonly') || 
-                                     dbAccount.scope?.includes('calendar.events')
+            const hasCalendarReadScope = dbAccount.scope?.includes('calendar.readonly')
+            const hasCalendarEventsScope = dbAccount.scope?.includes('calendar.events')
             
-            if (hasCalendarScopes) {
-              console.log('NextAuth JWT: Updated token with calendar scopes')
+            if (hasCalendarReadScope || hasCalendarEventsScope) {
+              console.log('NextAuth JWT: Updated token with calendar scopes', {
+                read: hasCalendarReadScope,
+                events: hasCalendarEventsScope
+              })
             }
           }
         } catch (error) {

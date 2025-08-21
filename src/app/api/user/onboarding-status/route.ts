@@ -25,7 +25,8 @@ export async function GET(req: NextRequest) {
         aiAssistantName: true,
         aiPersonality: true,
         hasCompletedOnboarding: true,
-        calendarIntegrationEnabled: true,
+        calendarReadPermission: true,
+        calendarEventsPermission: true,
         createdAt: true,
         updatedAt: true,
       }

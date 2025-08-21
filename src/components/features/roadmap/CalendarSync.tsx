@@ -44,10 +44,11 @@ export function CalendarSync({ milestones, onClose }: CalendarSyncProps) {
   useEffect(() => {
     const checkCalendarAccess = async () => {
       try {
-        const response = await fetch('/api/user/onboarding-status')
+        const response = await fetch('/api/user/calendar-permissions')
         if (response.ok) {
           const data = await response.json()
-          setHasCalendarAccess(data.user.calendarIntegrationEnabled || false)
+          // Check if user has events permission for syncing milestones
+          setHasCalendarAccess(data.calendarEventsPermission || false)
         } else {
           setHasCalendarAccess(false)
         }
@@ -130,8 +131,9 @@ export function CalendarSync({ milestones, onClose }: CalendarSyncProps) {
       <CalendarPermissionRequest
         onPermissionGranted={handlePermissionGranted}
         onCancel={handleClose}
-        title="Enable Calendar Integration"
-        description="To sync your milestones to Google Calendar, we need your permission to access your calendar."
+        title="Enable Calendar Events Permission"
+        description="To sync your milestones to Google Calendar, we need permission to create calendar events."
+        showPermissionOptions={false}
       />
     )
   }

@@ -296,14 +296,14 @@ export async function gatherAICompanionContext(userId: string, userTimezone: str
  */
 export async function getTodayCalendarEvents(userId: string, userTimezone: string): Promise<CalendarEvent[]> {
   try {
-    // First check if user has calendar integration enabled
+    // First check if user has calendar read permission
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { calendarIntegrationEnabled: true }
+      select: { calendarReadPermission: true }
     })
 
-    if (!user?.calendarIntegrationEnabled) {
-      console.log('Calendar integration not enabled for user')
+    if (!user?.calendarReadPermission) {
+      console.log('Calendar read permission not enabled for user')
       return []
     }
 
