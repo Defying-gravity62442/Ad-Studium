@@ -426,6 +426,26 @@ export default function Home() {
                 heming@cs.washington.edu
               </a>
             </div>
+            
+            <div className="flex items-center justify-center gap-6 text-sm text-gray-400 mt-4">
+              <a 
+                href="/PRIVACY.html" 
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-300 hover:text-white hover:underline font-medium text-elegant"
+              >
+                Privacy Policy
+              </a>
+              <span className="text-gray-500">•</span>
+              <a 
+                href="/TERMS.html" 
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-300 hover:text-white hover:underline font-medium text-elegant"
+              >
+                Terms of Service
+              </a>
+            </div>
           </div>
         </div>
       </footer>

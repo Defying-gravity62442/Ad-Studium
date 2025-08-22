@@ -20,6 +20,9 @@ const cardo = Cardo({
 export const metadata: Metadata = {
   title: "Ad Studium - To knowledge, to enthusiasm, to reflection.",
   description: "The only AI companion that grows with you as you prepare for PhD programs",
+  verification: {
+    google: "P4U75i8SGh3Jdst3B_nM5YXKCuqcDAGbK9a64NPuFIE",
+  },
 };
 
 export default function RootLayout({
