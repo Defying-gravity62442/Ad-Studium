@@ -189,8 +189,8 @@ Ad Studium is built by and for the PhD aspirant community. Contributions are wel
 
 ## 🙋‍♂️ Support & Contact
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/ad-studium/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/ad-studium/discussions)
+- **Issues**: [GitHub Issues](https://github.com/Defying-gravity62442/ad-studium/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/Defying-gravity62442/ad-studium/discussions)
 - **Email**: [heming@cs.washington.edu](mailto:heming@cs.washington.edu)
 
 ## 🎓 About the Creator
@@ -200,8 +200,8 @@ Ad Studium was created by an undergraduate student preparing for PhD application
 ## ⚖️ Legal Information
 
 ### For Hosted Service Users
-- **Terms of Service**: [View Terms](https://adstudium.app/TERMS.html)
-- **Privacy Policy**: [View Privacy Policy](https://adstudium.app/PRIVACY.html)
+- **Terms of Service**: [View Terms](https://ad-studium.vercel.app/TERMS.html)
+- **Privacy Policy**: [View Privacy Policy](https://ad-studium.vercel.app/PRIVACY.html)
 
 ### For Self-Hosting
 - **License**: [Business Source License 1.1](LICENSE.md) - governs your use of the codebase
@@ -222,4 +222,4 @@ Ad Studium was created by an undergraduate student preparing for PhD application
 
 ---
 
-*Ready to begin your PhD preparation journey? [Get started now](https://adstudium.app) or star this repository to follow our progress.*
+*Ready to begin your PhD preparation journey? [Get started now](https://ad-studium.vercel.app/) or star this repository to follow our progress.*
